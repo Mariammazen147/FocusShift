@@ -1,0 +1,68 @@
+{
+  "name": "focusshift",
+  "displayName": "FocusShift",
+  "description": "Never lose your coding context — auto chime + smart summary on return",
+  "version": "0.1.0",
+  "publisher": "your-team-name",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "FocusShift",
+      "properties": {
+        "focusshift.inactivityMinutes": {
+          "type": "number",
+          "default": 5,
+          "description": "Minutes of inactivity before saving state"
+        },
+        "focusshift.chimeEnabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "focusshift.chimeVolume": {
+          "type": "number",
+          "default": 0.6,
+          "minimum": 0,
+          "maximum": 1
+        },
+        "focusshift.useCustomNLP": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use our custom-trained NLP model for summaries"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "focusshift.testChime",
+        "title": "FocusShift: Test Chime"
+      },
+      {
+        "command": "focusshift.showLastState",
+        "title": "FocusShift: Show Last Saved Context"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.1.0",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "@tensorflow-models/universal-sentence-encoder": "^1.3.3",
+    "@tensorflow/tfjs": "^4.21.0"
+  }
+}
