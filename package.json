@@ -46,6 +46,18 @@
         "title": "FocusShift: Test Chime"
       },
       {
+        "command": "focusshift.setVolume",
+        "title": "FocusShift: Set Chime Volume"
+      },
+      {
+        "command": "focusshift.toggleChime",
+        "title": "FocusShift: Toggle Chime On/Off"
+      },
+      {
+    "command": "focusshift.checkChimeFile",
+    "title": "FocusShift: Check Chime File"
+  },
+      {
         "command": "focusshift.showLastState",
         "title": "FocusShift: Show Last Saved Context"
       }
@@ -57,12 +69,15 @@
     "pretest": "npm run compile"
   },
   "devDependencies": {
+    "@types/play-sound": "^1.1.2",
     "@types/vscode": "^1.95.0",
     "@vscode/vsce": "^3.1.0",
     "typescript": "^5.6.2"
   },
   "dependencies": {
     "@tensorflow-models/universal-sentence-encoder": "^1.3.3",
-    "@tensorflow/tfjs": "^4.21.0"
+    "@tensorflow/tfjs": "^4.21.0",
+    "node-wav-player": "^1.0.0",
+    "play-sound": "^1.1.6"
   }
 }
