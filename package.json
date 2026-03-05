@@ -48,6 +48,18 @@
       {
         "command": "focusshift.showLastState",
         "title": "FocusShift: Show Last Saved Context"
+      },
+      {
+        "command": "focusshift.capture",
+        "title": "FocusShift: Capture State"
+      },
+      {
+        "command": "focusshift.restore",
+        "title": "FocusShift: Restore State"
+      },
+      {
+        "command": "focusshift.hello",
+        "title": "FocusShift: Hello (Test Command)"
       }
     ]
   },
