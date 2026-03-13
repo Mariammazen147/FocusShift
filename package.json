@@ -54,9 +54,9 @@
         "title": "FocusShift: Toggle Chime On/Off"
       },
       {
-    "command": "focusshift.checkChimeFile",
-    "title": "FocusShift: Check Chime File"
-  },
+        "command": "focusshift.checkChimeFile",
+        "title": "FocusShift: Check Chime File"
+      },
       {
         "command": "focusshift.showLastState",
         "title": "FocusShift: Show Last Saved Context"
@@ -72,7 +72,11 @@
       {
         "command": "focusshift.hello",
         "title": "FocusShift: Hello (Test Command)"
-      }
+      },
+      {
+        "command": "focusshift.testHeuristic",
+        "title": "FocusShift: Test Heuristic Summary"
+}
     ]
   },
   "scripts": {
@@ -81,8 +85,9 @@
     "pretest": "npm run compile"
   },
   "devDependencies": {
+    "@types/node": "^25.4.0",
     "@types/play-sound": "^1.1.2",
-    "@types/vscode": "^1.95.0",
+    "@types/vscode": "^1.110.0",
     "@vscode/vsce": "^3.1.0",
     "typescript": "^5.6.2"
   },
