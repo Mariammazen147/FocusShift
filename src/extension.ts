@@ -1,12 +1,9 @@
-// src/extension.ts
 import * as vscode from 'vscode';
 
-// Team modules
-import { activateDetection } from './core/detection';     // Person 1
-import { activateChime } from './audio/chimePlayer';      // Person 2
-import { activatePopup } from './ui/popupManager';        // Person 3
-import { activateHeuristic } from './summary/heuristic';  // Person 4
-// Import your StateManager
+import { activateDetection } from './core/detection';     
+import { activateChime } from './audio/chimePlayer';      
+import { activatePopup } from './ui/popupManager';        
+import { activateHeuristic } from './summary/heuristic';  
 import { StateManager } from './core/stateManager';
 
 export function activate(context: vscode.ExtensionContext) {
