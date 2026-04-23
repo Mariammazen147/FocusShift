@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "publisher": "your-team-name",
   "engines": {
-    "vscode": "^1.116.0"
+    "vscode": "^1.95.0"
   },
   "categories": [
     "Other"
@@ -25,13 +25,8 @@
         },
         "focusshift.chimeEnabled": {
           "type": "boolean",
-          "default": true
-        },
-        "focusshift.chimeVolume": {
-          "type": "number",
-          "default": 0.6,
-          "minimum": 0,
-          "maximum": 1
+          "default": true,
+          "description": "Enable or disable chime sound"
         },
         "focusshift.useCustomNLP": {
           "type": "boolean",
@@ -44,10 +39,6 @@
       {
         "command": "focusshift.testChime",
         "title": "FocusShift: Test Chime"
-      },
-      {
-        "command": "focusshift.setVolume",
-        "title": "FocusShift: Set Chime Volume"
       },
       {
         "command": "focusshift.toggleChime",
@@ -70,17 +61,13 @@
         "title": "FocusShift: Restore State"
       },
       {
-        "command": "focusshift.testPopup",
-        "title": "FocusShift: Test Popup"
-      },
-      {
         "command": "focusshift.hello",
         "title": "FocusShift: Hello (Test Command)"
       },
       {
         "command": "focusshift.testHeuristic",
         "title": "FocusShift: Test Heuristic Summary"
-      }
+}
     ]
   },
   "scripts": {
@@ -91,7 +78,7 @@
   "devDependencies": {
     "@types/node": "^25.4.0",
     "@types/play-sound": "^1.1.2",
-    "@types/vscode": "^1.116.0",
+    "@types/vscode": "^1.110.0",
     "@vscode/vsce": "^3.1.0",
     "typescript": "^5.6.2"
   },

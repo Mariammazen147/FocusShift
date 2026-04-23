@@ -1,14 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execPromise = promisify(exec);
 
 /*
  ChimePlayer class => handles audio playback for FocusShift
- & uses PowerShell for volume-controlled audio on Windows
+ & uses node-wav-player for reliable audio playback
  */
 export class ChimePlayer {
   private context: vscode.ExtensionContext;
@@ -34,14 +30,13 @@ export class ChimePlayer {
   }
 
   /*
-   playChime function => plays the chime sound with volume control
+   playChime function => plays the chime sound
    */
   public async playChime(): Promise<void> {
     try {
       console.log('🎵 [ChimePlayer] Starting playChime()...');
       
       const config = vscode.workspace.getConfiguration('focusshift');
-      const volume = config.get<number>('chimeVolume', 0.6);
       const enabled = config.get<boolean>('chimeEnabled', true);
 
       //Check if chime is enabled
@@ -61,48 +56,19 @@ export class ChimePlayer {
       }
 
       console.log(`🎵 [ChimePlayer] Playing: ${chimeFile}`);
-      console.log(`🔊 [ChimePlayer] Volume: ${Math.round(volume * 100)}%`);
       console.log(`✅ [ChimePlayer] Enabled: ${enabled}`);
 
-      //use PowerShell to play with volume control (Windows only)
-      const volumePercent = Math.round(volume * 100);
-      
-      //escape the path for PowerShell
-      const escapedPath = chimeFile.replace(/\\/g, '\\\\');
-      
-      const psCommand = `
-        $player = New-Object System.Media.SoundPlayer
-        $player.SoundLocation = "${escapedPath}"
-        $player.Load()
-        $player.Play()
-      `;
-
-      await execPromise(`powershell -Command "${psCommand.replace(/\n/g, ' ')}"`);
-      
-      console.log('✅ [ChimePlayer] Chime played successfully');
-
-    } catch (error) {
-      console.error('❌ [ChimePlayer] Error:', error);
-      //fallback: try simple playback without volume control
-      this.playChimeFallback();
-    }
-  }
-
-  /*
-   playChimeFallback function => Fallback: Play without volume control
-   */
-  private async playChimeFallback(): Promise<void> {
-    try {
-      const chimeFile = this.getChimeFilePath();
-      if (!chimeFile) return;
-
+      // Play audio using node-wav-player
       const player = require('node-wav-player');
       await player.play({
         path: chimeFile,
         sync: false
       });
+      
+      console.log('✅ [ChimePlayer] Chime played successfully');
+
     } catch (error) {
-      console.error('❌ Fallback playback also failed:', error);
+      console.error('❌ [ChimePlayer] Error:', error);
     }
   }
 
@@ -136,18 +102,6 @@ export class ChimePlayer {
     }
 
     return null;
-  }
-
-  /*
-   setVolume function => sets the volume (0.0 to 1.0)
-   Note: Actual volume control requires system-level changes
-   */
-  public async setVolume(volume: number): Promise<void> {
-    const config = vscode.workspace.getConfiguration('focusshift');
-    await config.update('chimeVolume', volume, vscode.ConfigurationTarget.Global);
-    vscode.window.showInformationMessage(
-      `FocusShift: Volume set to ${Math.round(volume * 100)}%\n(Note: Volume control is limited on some systems)`
-    );
   }
 
   /*
@@ -186,9 +140,9 @@ export function activateChime(context: vscode.ExtensionContext) {
         const enabled = config.get<boolean>('chimeEnabled', true);
 
         if(!enabled) {
-          //show diabled message
+          //show disabled message
           vscode.window.showWarningMessage(
-            'FocusShift: Chime is Currently disabled!\n\nEnable it in settings or use "Toggle Chime On/Off" command.'
+            '🔇 FocusShift: Chime is currently disabled!\n\nEnable it in settings or use "Toggle Chime On/Off" command.'
           );
           console.log('⚠️ Test chime blocked - chime is disabled in settings');
           return; //Don't play
@@ -197,29 +151,6 @@ export function activateChime(context: vscode.ExtensionContext) {
         //chime is enabled, proceed
         vscode.window.showInformationMessage('🎵 FocusShift: Playing test chime...');
         await chimePlayer.playChime();
-      }
-    }
-  );
-
-  //register volume control command
-  const setVolumeCmd = vscode.commands.registerCommand(
-    'focusshift.setVolume',
-    async () => {
-      const input = await vscode.window.showInputBox({
-        prompt: 'Enter volume (0-100)',
-        value: '60',
-        validateInput: (value) => {
-          const num = parseInt(value);
-          if (isNaN(num) || num < 0 || num > 100) {
-            return 'Please enter a number between 0 and 100';
-          }
-          return null;
-        }
-      });
-
-      if (input && chimePlayer) {
-        const volume = parseInt(input) / 100;
-        await chimePlayer.setVolume(volume);
       }
     }
   );
@@ -239,13 +170,9 @@ export function activateChime(context: vscode.ExtensionContext) {
     'focusshift.checkChimeFile',
     () => {
       const mediaFolder = path.join(context.extensionPath, 'media');
-      //const chimeFile = path.join(mediaFolder, 'chime.wav');
       
       console.log('📁 Extension path:', context.extensionPath);
       console.log('📁 Media folder:', mediaFolder);
-      //console.log('📁 Chime file:', chimeFile);
-      //console.log('📁 File exists?', fs.existsSync(chimeFile));
-
 
       if(!fs.existsSync(mediaFolder)) {
         console.log('❌ Media folder does not exist!');
@@ -261,7 +188,7 @@ export function activateChime(context: vscode.ExtensionContext) {
       const chimeFile = path.join(mediaFolder, 'chime.wav');
       const chimeWavExists = fs.existsSync(chimeFile);
 
-      //look for any.wav file
+      //look for any .wav file
       const wavFiles = files.filter(f => f.toLowerCase().endsWith('.wav'));
       const anyWavExists = wavFiles.length > 0;
 
@@ -276,29 +203,17 @@ export function activateChime(context: vscode.ExtensionContext) {
         message = '❌ No .wav files found!\n\n';
       }
 
-      message += `\nFiles in media folder:\n${files.join('\n')}`;
+      message += `Files in media folder:\n${files.join('\n')}`;
 
       console.log('📁 chime.wav exists?', chimeWavExists);
       console.log('📁 Any .wav files?', anyWavExists);
       console.log('📁 .wav files found:' , wavFiles);
 
       vscode.window.showInformationMessage(message);
-      
-      // if (fs.existsSync(mediaFolder)) {
-      //   const files = fs.readdirSync(mediaFolder);
-      //   console.log('📁 Files in media folder:', files);
-        
-      //   vscode.window.showInformationMessage(
-      //     `Chime file ${fs.existsSync(chimeFile) ? 'EXISTS ✅' : 'NOT FOUND ❌'}\n\nFiles in media: ${files.join(', ')}`
-      //   );
-      // } else {
-      //   console.log('❌ Media folder does not exist!');
-      //   vscode.window.showErrorMessage('❌ Media folder does not exist!');
-      // }
     }
   );
 
-  context.subscriptions.push(testChimeCmd, setVolumeCmd, toggleCmd, checkFileCmd);
+  context.subscriptions.push(testChimeCmd, toggleCmd, checkFileCmd);
 }
 
 /*
@@ -312,4 +227,3 @@ export async function playChimeIfEnabled(): Promise<void> {
     console.warn('⚠️ ChimePlayer not initialized');
   }
 }
-
