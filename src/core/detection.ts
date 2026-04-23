@@ -5,7 +5,7 @@ import { StateManager } from './stateManager';
 // sets up detection for interruptions (blur + inactivity).
 export function activateDetection(context: vscode.ExtensionContext) {
   // StateManager instance to handle saving/restoring editor state.
-  const stateManager = new StateManager(context.workspaceState);
+  const stateManager = new StateManager(context.globalState);
 
   // --- Window blur detection ---
   vscode.window.onDidChangeWindowState(state => {

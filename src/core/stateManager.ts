@@ -14,6 +14,12 @@ export interface EditorContext {
   awayDuration?: number;
 }
 
+export interface WorkspaceContext {
+  editors: EditorContext[];
+  activeEditorUri?: string;
+  timestamp: number;
+}
+
 export class StateManager {
   private storage: vscode.Memento;
 
@@ -67,38 +73,46 @@ export class StateManager {
     });
   }
 
-  // --- Capture current editor state ---
+  // --- Capture current workspace state ---
   public captureState() {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      console.warn("FocusShift: No active editor, cannot capture state.");
+    const editors = vscode.window.visibleTextEditors;
+    if (editors.length === 0) {
+      console.warn("FocusShift: No open editors, cannot capture state.");
       return;
     }
 
-    const doc = editor.document;
-    const pos = editor.selection.active;
-
-    const snippet = this.extractEnclosingBlock(doc, pos);
-
+    const activeEditor = vscode.window.activeTextEditor;
     const now = Date.now();
     this.lastCaptureTime = now;
 
-    const context: EditorContext = {
-      fileUri: doc.uri.toString(),
-      position: pos,
-      snippet,
-      timestamp: now,
-      editHistory: this.editHistory,
-      cursorHistory: this.cursorHistory,
-      scrollHistory: this.scrollHistory,
-      tabHistory: this.tabHistory
+    const editorContexts: EditorContext[] = editors.map(editor => {
+      const doc = editor.document;
+      const pos = editor.selection.active;
+      const snippet = this.extractEnclosingBlock(doc, pos);
+
+      return {
+        fileUri: doc.uri.toString(),
+        position: pos,
+        snippet,
+        timestamp: now,
+        editHistory: [...this.editHistory],
+        cursorHistory: [...this.cursorHistory],
+        scrollHistory: [...this.scrollHistory],
+        tabHistory: [...this.tabHistory]
+      };
+    });
+
+    const workspaceContext: WorkspaceContext = {
+      editors: editorContexts,
+      activeEditorUri: activeEditor ? activeEditor.document.uri.toString() : undefined,
+      timestamp: now
     };
 
-    this.storage.update('focusshift.lastState', JSON.stringify(context));
-    console.log('FocusShift: State captured');
+    this.storage.update('focusshift.lastState', JSON.stringify(workspaceContext));
+    console.log(`FocusShift: State captured for ${editors.length} editors`);
   }
 
-  // --- Restore saved editor state ---
+  // --- Restore saved workspace state ---
   public async restoreState() {
     const raw = this.storage.get<string>('focusshift.lastState');
     if (!raw) {
@@ -106,20 +120,29 @@ export class StateManager {
       return;
     }
 
-    let state: EditorContext;
+    let state: WorkspaceContext;
     try {
-      state = JSON.parse(raw) as EditorContext;
+      state = JSON.parse(raw) as WorkspaceContext;
     } catch (err) {
       console.error("FocusShift: Failed to parse saved state:", err);
       return;
     }
 
     try {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.fileUri));
-      const editor = await vscode.window.showTextDocument(doc);
-      editor.selection = new vscode.Selection(state.position, state.position);
+      // Open all editors that were open
+      for (const editorContext of state.editors) {
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(editorContext.fileUri));
+        const editor = await vscode.window.showTextDocument(doc, { preview: false });
+        editor.selection = new vscode.Selection(editorContext.position, editorContext.position);
+      }
+
+      // Make the previously active editor active again
+      if (state.activeEditorUri) {
+        const activeDoc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.activeEditorUri));
+        await vscode.window.showTextDocument(activeDoc);
+      }
     } catch (err) {
-      console.error("FocusShift: Failed to restore editor state:", err);
+      console.error("FocusShift: Failed to restore workspace state:", err);
       return;
     }
 
@@ -127,14 +150,18 @@ export class StateManager {
 
     const now = Date.now();
     const awayDuration = this.lastCaptureTime ? Math.floor((now - this.lastCaptureTime) / 1000) : 0;
-    state.awayDuration = awayDuration;
 
-    console.log(`FocusShift: State restored after ${awayDuration} seconds away`);
+    // Update away duration for all editors
+    state.editors.forEach(editor => {
+      editor.awayDuration = awayDuration;
+    });
+
+    console.log(`FocusShift: Workspace state restored after ${awayDuration} seconds away`);
     this.writeLog(state);
   }
 
   // --- Save histories to a JSON log file (per day) ---
-  private writeLog(state: EditorContext) {
+  private writeLog(state: WorkspaceContext) {
     try {
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -150,13 +177,17 @@ export class StateManager {
 
       const logEntry = {
         timestamp: new Date().toLocaleString(),
-        file: state.fileUri,
-        awayDuration: state.awayDuration,
-        snippet: state.snippet,
-        edits: state.editHistory,
-        cursorMoves: state.cursorHistory,
-        scrolls: state.scrollHistory,
-        tabSwitches: state.tabHistory
+        activeEditor: state.activeEditorUri,
+        awayDuration: state.editors[0]?.awayDuration || 0,
+        editors: state.editors.map(editor => ({
+          file: editor.fileUri,
+          position: editor.position,
+          snippet: editor.snippet,
+          edits: editor.editHistory,
+          cursorMoves: editor.cursorHistory,
+          scrolls: editor.scrollHistory,
+          tabSwitches: editor.tabHistory
+        }))
       };
 
       let existing: any[] = [];

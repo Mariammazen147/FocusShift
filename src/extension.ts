@@ -42,6 +42,23 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('FocusShift is alive and waiting for your code!');
   });
   context.subscriptions.push(disposable);
+
+  // Test command to force-show the welcome popup with fake data
+  const testPopup = vscode.commands.registerCommand('focusshift.testPopup', () => {
+    const { WelcomePanel } = require('./ui/welcomePanel');
+    WelcomePanel.show(context, {
+      fileUri: 'file:///test/utils.ts',
+      position: { line: 141, character: 0 },
+      snippet: 'function calculateExchange(amount, rate) {',
+      timestamp: Date.now(),
+      editHistory: [],
+      cursorHistory: [],
+      scrollHistory: [],
+      tabHistory: [],
+      awayDuration: 325
+    });
+  });
+  context.subscriptions.push(testPopup);
 }
 
 export function deactivate() {

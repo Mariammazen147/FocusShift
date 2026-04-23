@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusShift</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      /* Transparent so the webview background doesn't clash with the theme */
+      background: transparent;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      min-height: 100vh;
+      padding: 20px;
+      font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+      font-size: var(--vscode-font-size, 13px);
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--vscode-editorWidget-background, #252526);
+      border: 1px solid var(--vscode-editorWidget-border, #454545);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      width: 340px;
+      overflow: hidden;
+
+      /* Fade + slide in from bottom-right */
+      opacity: 0;
+      transform: translateY(16px);
+      animation: fadeSlideIn 0.3s ease forwards;
+    }
+
+    @keyframes fadeSlideIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Fade out class added by JS on dismiss */
+    .card.dismissing {
+      animation: fadeSlideOut 0.25s ease forwards;
+    }
+
+    @keyframes fadeSlideOut {
+      to {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+    }
+
+    /* ── Header bar ── */
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid var(--vscode-editorWidget-border, #454545);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    /* Pulsing green dot — "you're back" indicator */
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ec94e;
+      animation: pulse 2s ease infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.6; transform: scale(0.85); }
+    }
+
+    .header-title {
+      color: var(--vscode-editorWidget-foreground, #cccccc);
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      opacity: 0.75;
+    }
+
+    /* ✕ close button */
+    .btn-close {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--vscode-editorWidget-foreground, #cccccc);
+      opacity: 0.5;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: opacity 0.15s, background 0.15s;
+    }
+
+    .btn-close:hover {
+      opacity: 1;
+      background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.1));
+    }
+
+    /* ── Body ── */
+    .card-body {
+      padding: 14px;
+    }
+
+    .welcome-text {
+      color: var(--vscode-editorWidget-foreground, #cccccc);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+
+    /* The file + function context line */
+    .context-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 10px 0 14px;
+      padding: 8px 10px;
+      background: var(--vscode-editor-background, #1e1e1e);
+      border-radius: 5px;
+      border-left: 3px solid var(--vscode-focusBorder, #007fd4);
+    }
+
+    .context-icon {
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .context-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0; /* allow text-overflow to work */
+    }
+
+    .context-function {
+      color: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
+      font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .context-file {
+      color: var(--vscode-descriptionForeground, #858585);
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Away badge ── */
+    .away-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground, #858585);
+      margin-bottom: 14px;
+    }
+
+    .away-badge span {
+      color: var(--vscode-editorWidget-foreground, #cccccc);
+      font-weight: 500;
+    }
+
+    /* ── Action buttons ── */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 7px 12px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      transition: filter 0.15s, opacity 0.15s;
+    }
+
+    .btn:active {
+      filter: brightness(0.9);
+    }
+
+    /* Primary — "Jump there" */
+    .btn-primary {
+      background: var(--vscode-button-background, #0e639c);
+      color: var(--vscode-button-foreground, #ffffff);
+    }
+
+    .btn-primary:hover {
+      background: var(--vscode-button-hoverBackground, #1177bb);
+    }
+
+    /* Secondary — "Dismiss" */
+    .btn-secondary {
+      background: var(--vscode-button-secondaryBackground, #3a3d41);
+      color: var(--vscode-button-secondaryForeground, #cccccc);
+    }
+
+    .btn-secondary:hover {
+      background: var(--vscode-button-secondaryHoverBackground, #45494e);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="card">
+
+    <!-- Header -->
+    <div class="card-header">
+      <div class="header-left">
+        <div class="status-dot"></div>
+        <span class="header-title">Welcome back</span>
+      </div>
+      <button class="btn-close" id="btnClose" title="Dismiss">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="card-body">
+
+      <p class="welcome-text">You were last editing:</p>
+
+      <!-- File / function context block -->
+      <div class="context-line">
+        <span class="context-icon">⚡</span>
+        <div class="context-info">
+          <!-- These placeholders are replaced by welcomePanel.ts before injecting the HTML -->
+          <span class="context-function" id="fnName">{{FUNCTION_NAME}}</span>
+          <span class="context-file" id="fileName">{{FILE_NAME}} · line {{LINE_NUMBER}}</span>
+        </div>
+      </div>
+
+      <!-- How long they were away -->
+      <div class="away-badge">
+        🕐 Away for <span id="awayDuration">{{AWAY_DURATION}}</span>
+      </div>
+
+      <!-- Buttons -->
+      <div class="card-actions">
+        <button class="btn btn-primary"   id="btnJump">Jump there</button>
+        <button class="btn btn-secondary" id="btnDismiss">Dismiss</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // VS Code webview API — lets us send messages back to the extension
+    const vscode = acquireVsCodeApi();
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Animate the card out, then post a message to the extension */
+    function dismiss(action) {
+      const card = document.getElementById('card');
+      card.classList.add('dismissing');
+      card.addEventListener('animationend', () => {
+        vscode.postMessage({ command: action });
+      }, { once: true });
+    }
+
+    // ── Button listeners ─────────────────────────────────────────────────────
+
+    document.getElementById('btnJump').addEventListener('click', () => {
+      dismiss('jump');        // extension will restore cursor then close panel
+    });
+
+    document.getElementById('btnDismiss').addEventListener('click', () => {
+      dismiss('dismiss');     // extension just closes the panel
+    });
+
+    document.getElementById('btnClose').addEventListener('click', () => {
+      dismiss('dismiss');
+    });
+
+    // ── Keyboard shortcut: Escape to dismiss ─────────────────────────────────
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') dismiss('dismiss');
+    });
+  </script>
+
+</body>
+</html>
