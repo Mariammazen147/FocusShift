@@ -1,47 +1,25 @@
 import * as vscode from 'vscode';
 
-import { activateDetection } from './core/detection';     
-import { activateChime } from './audio/chimePlayer';      
-import { activatePopup } from './ui/popupManager';        
-import { activateHeuristic } from './summary/heuristic';  
-import { StateManager } from './core/stateManager';
+import { activateDetection } from './core/detection';
+import { activateChime } from './audio/chimePlayer';
+import { activatePopup } from './ui/popupManager';
+import { activateHeuristic } from './summary/heuristic';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('FocusShift is now active!');
 
-  activateDetection(context);     
-  activateChime(context);         
-  activatePopup(context);         
-  activateHeuristic(context);     
+  const stateManager = activateDetection(context);
+  activateChime(context);
+  activatePopup(context);
+  activateHeuristic(context);
 
-  // --- Add StateManager for capture/restore ---
-  const stateManager = new StateManager(context.globalState);
-
-  // Automatic capture/restore based on window focus
-  vscode.window.onDidChangeWindowState(event => {
-    if (event.focused) {
-      stateManager.restoreState();
-    } else {
-      stateManager.captureState();
-    }
+  const testLLMCmd = vscode.commands.registerCommand('focusshift.testLLMSummary', () => {
+    stateManager.testLLMNow();
   });
 
-  // Optional manual commands for testing
-  const captureCmd = vscode.commands.registerCommand('focusshift.capture', () => {
-    stateManager.captureState();
-  });
-
-  const restoreCmd = vscode.commands.registerCommand('focusshift.restore', () => {
-    stateManager.restoreState();
-  });
-
-  context.subscriptions.push(captureCmd, restoreCmd);
-
-  // Test command to check everything is loaded
-  let disposable = vscode.commands.registerCommand('focusshift.hello', () => {
+  const helloCmd = vscode.commands.registerCommand('focusshift.hello', () => {
     vscode.window.showInformationMessage('FocusShift is alive and waiting for your code!');
   });
-  context.subscriptions.push(disposable);
 
   // Test command to force-show the welcome popup with fake data
   const testPopup = vscode.commands.registerCommand('focusshift.testPopup', () => {
@@ -58,7 +36,8 @@ export function activate(context: vscode.ExtensionContext) {
       awayDuration: 325
     });
   });
-  context.subscriptions.push(testPopup);
+
+  context.subscriptions.push(testLLMCmd, helloCmd, testPopup);
 }
 
 export function deactivate() {
