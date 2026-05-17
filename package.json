@@ -67,7 +67,11 @@
       {
         "command": "focusshift.testHeuristic",
         "title": "FocusShift: Test Heuristic Summary"
-}
+      },
+      {
+        "command": "focusshift.testLLMSummary",
+        "title": "FocusShift: Test LLM Summary"
+      }
     ]
   },
   "scripts": {
