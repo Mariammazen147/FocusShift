@@ -28,49 +28,33 @@
           "default": true,
           "description": "Enable or disable chime sound"
         },
-        "focusshift.useCustomNLP": {
+        "focusshift.useCustomLLM": {
           "type": "boolean",
           "default": true,
-          "description": "Use our custom-trained NLP model for summaries"
+          "description": "Use our custom-trained LLM for summaries"
         }
       }
     },
     "commands": [
       {
-        "command": "focusshift.testChime",
-        "title": "FocusShift: Test Chime"
-      },
-      {
         "command": "focusshift.toggleChime",
         "title": "FocusShift: Toggle Chime On/Off"
       },
       {
-        "command": "focusshift.checkChimeFile",
-        "title": "FocusShift: Check Chime File"
-      },
-      {
-        "command": "focusshift.showLastState",
-        "title": "FocusShift: Show Last Saved Context"
-      },
-      {
-        "command": "focusshift.capture",
-        "title": "FocusShift: Capture State"
-      },
-      {
-        "command": "focusshift.restore",
-        "title": "FocusShift: Restore State"
-      },
-      {
-        "command": "focusshift.hello",
-        "title": "FocusShift: Hello (Test Command)"
-      },
-      {
         "command": "focusshift.testHeuristic",
-        "title": "FocusShift: Test Heuristic Summary"
+        "title": "FocusShift: Show Heuristic Summary"
       },
       {
         "command": "focusshift.testLLMSummary",
-        "title": "FocusShift: Test LLM Summary"
+        "title": "FocusShift: Show LLM Summary"
+      },
+      {
+        "command": "focusshift.showHistory",
+        "title": "FocusShift: Show Context History"
+      },
+      {
+        "command": "focusshift.setupOllama",
+        "title": "FocusShift: Setup Ollama (AI Summaries)"
       }
     ]
   },

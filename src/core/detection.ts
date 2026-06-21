@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import { StateManager } from './stateManager';
+import { HistoryService } from '../history/HistoryService';
 
 
 // sets up detection for interruptions (blur + inactivity).
-export function activateDetection(context: vscode.ExtensionContext): StateManager {
+export function activateDetection(context: vscode.ExtensionContext, historyService: HistoryService): StateManager {
   // StateManager instance to handle saving/restoring editor state.
-  const stateManager = new StateManager(context.globalState);
+  const stateManager = new StateManager(context.globalState, historyService);
 
   // --- Window blur detection ---
   vscode.window.onDidChangeWindowState(state => {

@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SummaryService } from '../summary/SummaryService';
+import { getHeuristicSummary } from '../summary/heuristic';
+import { HistoryService } from '../history/HistoryService';
+import { HistoryEntry } from '../history/HistoryEntry';
 
 export interface EditorContext {
   fileUri: string;
@@ -26,6 +29,7 @@ export interface WorkspaceContext {
 export class StateManager {
   private storage: vscode.Memento;
   private summaryService = new SummaryService();
+  private historyService: HistoryService;
 
   private editHistory: { time: string; change: string }[] = [];
   private cursorHistory: { time: string; action: string }[] = [];
@@ -34,8 +38,9 @@ export class StateManager {
 
   private lastCaptureTime: number | null = null;
 
-  constructor(storage: vscode.Memento) {
+  constructor(storage: vscode.Memento, historyService: HistoryService) {
     this.storage = storage;
+    this.historyService = historyService;
 
     // --- Track edits ---
     vscode.workspace.onDidChangeTextDocument(event => {
@@ -186,6 +191,7 @@ export class StateManager {
       return;
     }
 
+    let activeDoc: vscode.TextDocument | undefined;
     try {
       // Open all editors that were open
       for (const editorContext of state.editors) {
@@ -196,7 +202,7 @@ export class StateManager {
 
       // Make the previously active editor active again
       if (state.activeEditorUri) {
-        const activeDoc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.activeEditorUri));
+        activeDoc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.activeEditorUri));
         await vscode.window.showTextDocument(activeDoc);
       }
     } catch (err) {
@@ -220,13 +226,51 @@ export class StateManager {
     // Use the active editor's context for the LLM summary
     const activeCtx = state.editors.find(e => e.fileUri === state.activeEditorUri) ?? state.editors[0];
     if (activeCtx) {
-      console.log('FocusShift: Calling LLM summary...');
-      console.log('FocusShift: edits:', activeCtx.editHistory.length, 'cursors:', activeCtx.cursorHistory.length, 'scrolls:', activeCtx.scrollHistory.length);
-      const summary = await this.summaryService.generateLLMSummary(activeCtx);
-      console.log('FocusShift: LLM summary result:', summary ?? 'undefined (Ollama unreachable or returned nothing)');
-      if (summary) {
-        this.writeSummaryFile(activeCtx, summary);
+      const useCustomNLP = vscode.workspace.getConfiguration('focusshift').get<boolean>('useCustomNLP', true);
+
+      let summary: string | undefined;
+      if (useCustomNLP) {
+        console.log('FocusShift: Calling LLM summary...');
+        console.log('FocusShift: edits:', activeCtx.editHistory.length, 'cursors:', activeCtx.cursorHistory.length, 'scrolls:', activeCtx.scrollHistory.length);
+        summary = await this.summaryService.generateLLMSummary(activeCtx);
+        console.log('FocusShift: LLM summary result:', summary ?? 'undefined (Ollama unreachable or returned nothing)');
+        if (summary) {
+          this.writeSummaryFile(activeCtx, summary);
+        }
+      } else {
+        console.log('FocusShift: useCustomNLP disabled — skipping LLM summary, using heuristic only.');
       }
+
+      // Record this interruption in the context history
+      const doc = activeDoc ?? await vscode.workspace.openTextDocument(vscode.Uri.parse(activeCtx.fileUri));
+      const heuristicSummary = getHeuristicSummary(doc, activeCtx.position);
+
+      const entry: HistoryEntry = {
+        id: now.toString(),
+        timestamp: now,
+        fileUri: activeCtx.fileUri,
+        fileName: activeCtx.fileUri.split('/').pop() ?? 'unknown',
+        line: activeCtx.position.line + 1,
+        heuristicSummary,
+        llmSummary: summary,
+        snapshot: activeCtx
+      };
+      this.historyService.add(entry);
+    }
+  }
+
+  // --- Restore a single past context picked from the history panel ---
+  public async restoreFromSnapshot(ctx: EditorContext): Promise<void> {
+    try {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(ctx.fileUri));
+      const editor = await vscode.window.showTextDocument(doc, { preview: false });
+      // ctx.position comes back from storage as a plain {line, character} object, not a real vscode.Position
+      const position = new vscode.Position(ctx.position.line, ctx.position.character);
+      editor.selection = new vscode.Selection(position, position);
+      editor.revealRange(new vscode.Range(position, position));
+    } catch (err) {
+      console.error('FocusShift: Failed to restore from history snapshot:', err);
+      vscode.window.showWarningMessage('FocusShift: Could not restore — the file may no longer exist.');
     }
   }
 
