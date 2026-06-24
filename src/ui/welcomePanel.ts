@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { EditorContext } from '../core/stateManager';
 import { playChimeIfEnabled } from '../audio/chimePlayer';
+import { SummaryService } from '../summary/SummaryService';
+import { getHeuristicSummary } from '../summary/heuristic';
 
 /**
  * Manages the lifecycle of the FocusShift welcome-back webview panel.
@@ -12,6 +14,7 @@ export class WelcomePanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly context: vscode.ExtensionContext;
+  private readonly summaryService = new SummaryService();
   private disposables: vscode.Disposable[] = [];
 
   // ── Factory ──────────────────────────────────────────────────────────────
@@ -65,7 +68,9 @@ export class WelcomePanel {
   private handleMessage(msg: { command: string }): void {
     switch (msg.command) {
       case 'jump':
-        vscode.commands.executeCommand('focusshift.restore');
+        // Pass skipLLM=true — the popup already called generateLLMSummary,
+        // no need for stateManager to make a second concurrent Ollama request
+        vscode.commands.executeCommand('focusshift.restore', true);
         this.dispose();
         break;
       case 'dismiss':
@@ -76,23 +81,67 @@ export class WelcomePanel {
 
   // ── HTML builder ──────────────────────────────────────────────────────────
 
+  /**
+   * Show a loading state immediately, then kick off the async summary
+   * and update the panel once the result is ready.
+   */
   private update(state: EditorContext): void {
-    this.panel.webview.html = this.buildHtml(state);
+    // 1. Render instantly with heuristic so the popup never feels slow
+    const heuristicDesc = this.getHeuristicDesc(state);
+    this.panel.webview.html = this.renderHtml(state, heuristicDesc, false);
+
+    // 2. Only attempt LLM upgrade if user hasn't disabled it
+    const llmEnabled = vscode.workspace
+      .getConfiguration('focusshift')
+      .get<boolean>('enableLLMSummary', true);
+
+    if (!llmEnabled) {
+      // User disabled LLM — heuristic is the final result, nothing more to do
+      return;
+    }
+
+    // 3. Try to upgrade with the LLM summary in the background
+    this.summaryService.generateLLMSummary(state).then(llmDesc => {
+      if (llmDesc && WelcomePanel.current) {
+        this.panel.webview.html = this.renderHtml(state, llmDesc, true);
+      }
+    }).catch(() => {
+      // Ollama not running — heuristic already shown, nothing to do
+    });
   }
 
-  private buildHtml(state: EditorContext): string {
+  /** Quick synchronous fallback using the heuristic engine */
+  private getHeuristicDesc(state: EditorContext): string {
+    try {
+      // getHeuristicSummary needs a TextDocument — reconstruct a minimal one
+      // from the saved URI if the file is still open, otherwise use snippet
+      const openDoc = vscode.workspace.textDocuments.find(
+        d => d.uri.toString() === state.fileUri
+      );
+      if (openDoc) {
+        const pos = new vscode.Position(state.position?.line ?? 0, state.position?.character ?? 0);
+        return getHeuristicSummary(openDoc, pos);
+      }
+    } catch { /* ignore */ }
+    return this.buildContextDescription(state);
+  }
+
+  private renderHtml(state: EditorContext, contextDesc: string, isNlp: boolean): string {
+    const llmEnabled = vscode.workspace
+      .getConfiguration('focusshift')
+      .get<boolean>('enableLLMSummary', true);
     const rawFile      = state.fileUri ? path.basename(decodeURIComponent(vscode.Uri.parse(state.fileUri).fsPath)) : 'unknown file';
     const col          = (state.position?.character ?? 0) + 1;
     const lineNumber   = (state.position?.line ?? 0) + 1;
-    const fileName     = this.escapeHtml(rawFile);
-    const fileLine     = this.escapeHtml('Ln ' + lineNumber + ', Col ' + col);
     const fileDisplay  = this.escapeHtml(rawFile + '  Ln ' + lineNumber + ', Col ' + col);
     const awayDuration = this.escapeHtml(this.formatDuration(state.awayDuration ?? 0));
     const snippet      = this.escapeHtml(state.snippet ?? '// No snippet captured');
-    const contextDesc  = this.escapeHtml(this.buildContextDescription(state));
-
-    // suppress unused warning
-    void fileName; void fileLine;
+    const desc         = this.escapeHtml(contextDesc);
+    const badge        = isNlp
+      ? '<span class="nlp-badge">✨ AI</span>'
+      : llmEnabled
+        ? '<span class="nlp-badge heuristic">⚡ Quick</span>'
+        : '<span class="nlp-badge heuristic">⚡ Heuristic</span>';
 
     return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -246,6 +295,21 @@ export class WelcomePanel {
       margin-bottom: 10px;
     }
 
+    /* NLP vs heuristic badge */
+    .nlp-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: #2563eb;
+      color: #fff;
+      letter-spacing: 0.3px;
+    }
+    .nlp-badge.heuristic {
+      background: #475569;
+    }
+
     .context-desc {
       color: #94a3b8;
       font-size: 13px;
@@ -326,9 +390,9 @@ export class WelcomePanel {
       <!-- Context analysis -->
       <div class="context-box">
         <div class="context-title">
-          <span>🧠</span> Context Analysis
+          <span>🧠</span> Context Analysis ${badge}
         </div>
-        <p class="context-desc">${contextDesc}</p>
+        <p class="context-desc">${desc}</p>
         <div class="code-block"><span class="code-comment">// Your last position:</span>
 <span class="code-text">${snippet}</span></div>
       </div>
@@ -360,14 +424,12 @@ export class WelcomePanel {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /** Generate a human-readable description of what the user was doing */
+  /** Regex-based fallback when the document isn't open in the workspace */
   private buildContextDescription(state: EditorContext): string {
     const line    = (state.position?.line ?? 0) + 1;
     const snippet = state.snippet ?? '';
-
     if (/function\s+\w+/.test(snippet) || /=>\s*\{/.test(snippet)) {
-      return 'You were editing a function definition. The cursor was on line ' + line +
-             ' where you were likely defining function behavior or parameters.';
+      return 'You were editing a function definition on line ' + line + '.';
     }
     if (/class\s+\w+/.test(snippet)) {
       return 'You were working inside a class definition on line ' + line + '.';

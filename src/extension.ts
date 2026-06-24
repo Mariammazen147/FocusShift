@@ -150,6 +150,12 @@ export function activate(context: vscode.ExtensionContext) {
     testPopup,
     showHistoryCmd,
     setupOllama,
+    vscode.commands.registerCommand('focusshift.capture', () => {
+      stateManager.captureState();
+    }),
+    vscode.commands.registerCommand('focusshift.restore', (skipLLM: boolean = false) => {
+      stateManager.restoreState(skipLLM);
+    }),
   );    
 }
 

@@ -28,6 +28,16 @@
           "default": true,
           "description": "Enable or disable chime sound"
         },
+        "focusshift.enableLLMSummary": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use AI (Ollama) to generate context summaries. Disable to use heuristic summaries only."
+        },
+        "focusshift.llmModel": {
+          "type": "string",
+          "default": "qwen2.5-coder:1.5b-instruct",
+          "description": "Ollama model to use for AI summaries"
+        },
         "focusshift.useCustomLLM": {
           "type": "boolean",
           "default": true,
@@ -36,6 +46,18 @@
       }
     },
     "commands": [
+      {
+        "command": "focusshift.capture",
+        "title": "FocusShift: Capture State"
+      },
+      {
+        "command": "focusshift.restore",
+        "title": "FocusShift: Restore State"
+      },
+      {
+        "command": "focusshift.testPopup",
+        "title": "FocusShift: Test Popup"
+      },
       {
         "command": "focusshift.toggleChime",
         "title": "FocusShift: Toggle Chime On/Off"

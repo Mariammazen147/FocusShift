@@ -176,7 +176,7 @@ export class StateManager {
   }
 
   // --- Restore saved workspace state ---
-  public async restoreState() {
+  public async restoreState(skipLLM: boolean = false) {
     const raw = this.storage.get<string>('focusshift.lastState');
     if (!raw) {
       console.warn("FocusShift: No saved state found to restore.");
@@ -229,7 +229,7 @@ export class StateManager {
       const useCustomNLP = vscode.workspace.getConfiguration('focusshift').get<boolean>('useCustomNLP', true);
 
       let summary: string | undefined;
-      if (useCustomNLP) {
+      if (useCustomNLP && !skipLLM) {
         console.log('FocusShift: Calling LLM summary...');
         console.log('FocusShift: edits:', activeCtx.editHistory.length, 'cursors:', activeCtx.cursorHistory.length, 'scrolls:', activeCtx.scrollHistory.length);
         summary = await this.summaryService.generateLLMSummary(activeCtx);
