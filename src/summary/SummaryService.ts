@@ -86,11 +86,11 @@ export class SummaryService {
     const system =
       'Write in second person ("you"), be warm and encouraging. ' +
       "Always respond in EXACTLY this format with these three sections and nothing else:\n\n" +
-      "**Where You Were**\n" +
+      "**Where You Were**" +
       "- [bullet points describing the exact file, line, and what the developer was doing]\n\n" +
-      "**Context**\n" +
+      "**Context**" +
       "- [Bullet points about what was happening — recent edits, errors, what they were working through]\n\n" +
-      "**Suggestion**\n" +
+      "**Suggestion**" +
       "- [Bullet points suggesting the most logical next step]\n\n" +
       'Bold each section headline with double asterisks exactly as shown above, and start every bullet line with "- ". ' +
       "No extra text before or after these three sections. " +

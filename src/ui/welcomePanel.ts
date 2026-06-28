@@ -126,22 +126,30 @@ export class WelcomePanel {
     return this.buildContextDescription(state);
   }
 
-  private renderHtml(state: EditorContext, contextDesc: string, isNlp: boolean): string {
+  private renderHtml(state: EditorContext, contextDesc: string, isllm: boolean): string {
     const llmEnabled = vscode.workspace
       .getConfiguration('focusshift')
       .get<boolean>('enableLLMSummary', true);
+
+    // Inline SVGs — no external dependencies, works in any webview
+    const svgHubot    = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>`;
+    const svgClock    = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+    const svgFile     = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="10" y1="13" x2="14" y2="13"/><line x1="10" y1="17" x2="14" y2="17"/></svg>`;
+    const svgBulb     = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`;
+    const svgSparkle  = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>`;
+    const svgZap      = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
     const rawFile      = state.fileUri ? path.basename(decodeURIComponent(vscode.Uri.parse(state.fileUri).fsPath)) : 'unknown file';
     const col          = (state.position?.character ?? 0) + 1;
     const lineNumber   = (state.position?.line ?? 0) + 1;
     const fileDisplay  = this.escapeHtml(rawFile + '  Ln ' + lineNumber + ', Col ' + col);
     const awayDuration = this.escapeHtml(this.formatDuration(state.awayDuration ?? 0));
     const snippet      = this.escapeHtml(state.snippet ?? '// No snippet captured');
-    const desc         = this.escapeHtml(contextDesc);
-    const badge        = isNlp
-      ? '<span class="nlp-badge">✨ AI</span>'
+    const desc         = this.renderDesc(contextDesc);
+    const badge        = isllm
+      ? `<span class="llm-badge">${svgSparkle} AI</span>`
       : llmEnabled
-        ? '<span class="nlp-badge heuristic">⚡ Quick</span>'
-        : '<span class="nlp-badge heuristic">⚡ Heuristic</span>';
+        ? `<span class="llm-badge heuristic">${svgZap} Quick</span>`
+        : `<span class="llm-badge heuristic">${svgZap} Heuristic</span>`;
 
     return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -203,6 +211,7 @@ export class WelcomePanel {
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
       font-size: 22px;
+      color: #fff;
       flex-shrink: 0;
     }
 
@@ -257,8 +266,11 @@ export class WelcomePanel {
 
     .info-icon {
       font-size: 18px;
+      color: #a5b4fc;
       flex-shrink: 0;
       opacity: 0.85;
+      width: 20px;
+      text-align: center;
     }
 
     .info-label {
@@ -295,19 +307,32 @@ export class WelcomePanel {
       margin-bottom: 10px;
     }
 
-    /* NLP vs heuristic badge */
-    .nlp-badge {
+    .context-title > svg {
+      color: #fbbf24;
+      flex-shrink: 0;
+    }
+
+    /* llm vs heuristic badge */
+    .llm-badge {
       margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       font-size: 10px;
       font-weight: 600;
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 20px;
       background: #2563eb;
       color: #fff;
       letter-spacing: 0.3px;
+      line-height: 1;
     }
-    .nlp-badge.heuristic {
+    .llm-badge.heuristic {
       background: #475569;
+    }
+    .llm-badge svg {
+      flex-shrink: 0;
+      vertical-align: middle;
     }
 
     .context-desc {
@@ -315,6 +340,11 @@ export class WelcomePanel {
       font-size: 13px;
       line-height: 1.6;
       margin-bottom: 12px;
+    }
+
+    .context-desc strong {
+      color: #e2e8f0;
+      font-weight: 600;
     }
 
     .code-block {
@@ -355,7 +385,7 @@ export class WelcomePanel {
     <!-- Blue header -->
     <div class="card-header">
       <div class="header-left">
-        <div class="header-icon">🧠</div>
+        <div class="header-icon">${svgHubot}</div>
         <div class="header-text">
           <h2>Welcome Back!</h2>
           <p>Focus Shift restored your context</p>
@@ -371,7 +401,7 @@ export class WelcomePanel {
 
       <!-- Away duration row -->
       <div class="info-row">
-        <span class="info-icon">⏱️</span>
+        <span class="info-icon">${svgClock}</span>
         <div>
           <div class="info-label">You were away for</div>
           <div class="info-value">${awayDuration}</div>
@@ -380,7 +410,7 @@ export class WelcomePanel {
 
       <!-- File row -->
       <div class="info-row">
-        <span class="info-icon">📄</span>
+        <span class="info-icon">${svgFile}</span>
         <div>
           <div class="info-label">You were working in</div>
           <div class="info-value"><span class="mono">${fileDisplay}</span></div>
@@ -390,7 +420,7 @@ export class WelcomePanel {
       <!-- Context analysis -->
       <div class="context-box">
         <div class="context-title">
-          <span>🧠</span> Context Analysis ${badge}
+          ${svgBulb} Context Analysis ${badge}
         </div>
         <p class="context-desc">${desc}</p>
         <div class="code-block"><span class="code-comment">// Your last position:</span>
@@ -423,6 +453,18 @@ export class WelcomePanel {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Convert plain text with basic markdown into safe HTML.
+   * Handles: **bold**, newlines → <br>, and escapes everything else.
+   */
+  private renderDesc(text: string): string {
+    return this.escapeHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // collapse double newlines (after headers) into a single <br>
+      .replace(/\n{2,}/g, '<br>')
+      .replace(/\n/g, '<br>');
+  }
 
   /** Regex-based fallback when the document isn't open in the workspace */
   private buildContextDescription(state: EditorContext): string {
