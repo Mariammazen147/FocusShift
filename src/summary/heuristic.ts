@@ -1,25 +1,54 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export function getHeuristicSummary(document: vscode.TextDocument, position: vscode.Position): string {
-  const fileName = path.basename(document.fileName);
+const SKIP_VARS = new Set([
+  'i', 'j', 'k', 'x', 'y', 'z', 'm', 'n', 'e', 'r', 't',
+  'err', 'res', 'req', 'ctx', 'msg', 'tmp', 'val', 'key',
+  'data', 'item', 'line', 'text', 'node', 'root', 'temp',
+  'result', 'match', 'value', 'error', 'index', 'count',
+  'method', 'fn', 'cb', 'resolve', 'reject', 'response'
+]);
 
-  // read 20 lines above cursor and 3 below into an array
+//editCount and scrollCount come from EditorContext tracked in stateManager
+function pickVerb(editCount: number, scrollCount: number): string {
+  if (scrollCount > editCount * 2 && scrollCount > 3) { return 'reading through'; }
+  if (editCount > 5) { return 'writing in'; }
+  return 'working in';
+}
+
+export function getHeuristicSummary( 
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  editCount: number   = 0,
+  scrollCount: number = 0
+): string {
+
+  const fileName = path.basename(document.fileName);
+  const verb = pickVerb(editCount, scrollCount);
+
+//language routing
+  const langId = document.languageId;
+  if (langId === 'yaml' || langId === 'dockercompose') { return matchYaml(document, position, verb); }
+  if (langId === 'dockerfile')                          { return matchDockerfile(document, position, verb); }
+  if (langId === 'groovy')                              { return matchJenkinsfile(document, position, verb); }
+  if (langId === 'toml')                                { return matchToml(document, position, verb); }
+  if (langId === 'json' || langId === 'jsonc')          { return matchJson(document, position, verb); }
+  if (langId === 'makefile')                            { return matchMakefile(document, position, verb); }
+
+  //position line returns ex iu am on line 50, 50-20=30 ->therefore we start reading from line 30 
   const startLine = Math.max(0, position.line - 20);
-  const endLine = Math.min(document.lineCount - 1, position.line + 3);
+  const endLine   = Math.min(document.lineCount - 1, position.line + 3);
   const lines: string[] = [];
   for (let i = startLine; i <= endLine; i++) {
     lines.push(document.lineAt(i).text);
   }
 
-  // cursor position inside the lines[] array
-  // lines[] has: 20 lines above + cursor line + 3 lines below
-  // so cursor is at index: (total length) - 3 below - 1 = lines.length - 4
-  const cursorIndex = lines.length - 4;
+  //how far cursor is from lines[start]
+  const cursorIndex = position.line - startLine;
 
-  // ── NAMED MATCHERS ─────────────────────────────────────────────────────────
-  // each one checks ONE line and returns the name it found, or null
 
+
+  //matchers
   function matchClass(line: string): string | null {
     const m = line.trim().match(/^(?:export\s+)?(?:abstract\s+)?class\s+(\w+)/);
     return m ? m[1] : null;
@@ -35,10 +64,22 @@ export function getHeuristicSummary(document: vscode.TextDocument, position: vsc
     return m ? m[1] : null;
   }
 
-  function matchMethod(line: string): string | null {
-    // \)[^{]*\{ allows TypeScript return types like ): boolean {
-    const m = line.trim().match(/^(\w+)\s*\([^)]*\)[^{]*\{/);
-    if (m && !['if', 'for', 'while', 'switch', 'catch', 'constructor'].includes(m[1])) {
+  function matchEnum(line: string): string | null {
+    const m = line.trim().match(/^(?:export\s+)?enum\s+(\w+)/);
+    return m ? m[1] : null;
+  }
+
+  function matchDecorator(line: string): string | null {
+    const m = line.trim().match(/^@(\w+)/);
+    return m ? m[1] : null;
+  }
+
+  function matchMethod(line: string): string | null { 
+    const cleaned = line
+      .replace(/\b(public|private|protected|static|async|abstract|override|readonly)\b/g, '')
+      .trim();
+    const m = cleaned.match(/^(\w+)\s*\([^)]*\)[^{]*\{?/);
+    if (m && !['if', 'for', 'while', 'switch', 'catch'].includes(m[1])) {
       return m[1];
     }
     return null;
@@ -50,7 +91,7 @@ export function getHeuristicSummary(document: vscode.TextDocument, position: vsc
   }
 
   function matchArrow(line: string): string | null {
-    const m = line.trim().match(/(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(.*\)\s*=>/);
+    const m = line.trim().match(/^(?:(?:const|let|var)\s+)?(\w+)\s*=\s*(?:async\s+)?\(.*\)\s*=>/);
     return m ? m[1] : null;
   }
 
@@ -59,192 +100,249 @@ export function getHeuristicSummary(document: vscode.TextDocument, position: vsc
     return m ? m[1] : null;
   }
 
+  //matches variable name and skips the => in arrow function so it would only cmtch to var name not match an arrow function (edge case)
+ 
   function matchVariable(line: string): string | null {
-    // [^>] at end excludes arrow functions
     const m = line.trim().match(/(?:const|let|var)\s+(\w+)\s*=[^>]/);
-    return m ? m[1] : null;
-  }
-
-  function matchComment(line: string): string | null {
-    const m = line.trim().match(/(?:\/\/|#)\s*(.+)/);
-    // skip separator lines like // ══════ or // ------ (no letters/digits)
-    if (m && /\w/.test(m[1])) {
-      return m[1].substring(0, 40);
-    }
+    if (m && !SKIP_VARS.has(m[1]) && m[1].length > 2) { return m[1]; } //not in the block of useless var names,  name is longer than 2 chars so no fn
     return null;
   }
 
-  // returns true if this line is ANY kind of container declaration
   function isContainerLine(line: string): boolean {
     return matchClass(line) !== null ||
            matchInterface(line) !== null ||
-           matchPyClass(line) !== null;
+           matchPyClass(line) !== null ||
+           matchEnum(line) !== null;
   }
 
-  // ── SCOPE CHECK ────────────────────────────────────────────────────────────
-  // count { and } between container declaration and cursor
-  // if more } than { → container already closed → cursor is OUTSIDE
+
+  //depth tracking
   function isCursorInside(containerIndex: number): boolean {
-    let opens = 0;
-    let closes = 0;
-    for (let i = containerIndex + 1; i <= cursorIndex; i++) {
+    let depth = 0; 
+    let foundOpen = false;
+    for (let i = containerIndex; i <= cursorIndex; i++) { 
       for (const char of (lines[i] || '')) {
-        if (char === '{') { opens++; }
-        if (char === '}') { closes++; }
+        if (char === '{') { depth++; foundOpen = true; }
+        if (char === '}') {
+          depth--;
+          if (foundOpen && depth === 0 && i < cursorIndex) { return false; }
+        }
       }
+    } 
+    return foundOpen && depth > 0;
+  }
+
+  function isCursorInsidePython(containerIndex: number): boolean {
+    const containerIndent = (lines[containerIndex].match(/^(\s*)/) || ['', ''])[1].length;
+    for (let i = containerIndex + 1; i <= cursorIndex; i++) {
+      const line = lines[i];
+      if (line.trim() === '') { continue; } // blank lines don't count
+      const lineIndent = (line.match(/^(\s*)/) || ['', ''])[1].length;
+      if (lineIndent <= containerIndent) { return false; } // dedented back out — left the class
     }
-    return closes <= opens; // true = still inside
+    return true;
   }
 
 
-  // ── STEP 1: find nearest class/interface and check if cursor is inside it ──
+  //find nearest class/interface above cursor
   let containerName: string | null = null;
-  let containerType: string | null = null;
+  let containerType: string | null = null; 
   let containerIndex: number = -1;
 
   for (let i = cursorIndex; i >= 0; i--) {
-    const line = lines[i];
-
-    const cls = matchClass(line);
-    if (cls) {
-      if (isCursorInside(i)) {
-        containerName = cls;
-        containerType = 'class';
-        containerIndex = i;
-      }
-      break;
-    }
-
+    const line  = lines[i]; 
+    const cls   = matchClass(line); 
+    if (cls)   { if (isCursorInside(i)) { containerName = cls;   containerType = 'class';        containerIndex = i; } break; }
     const iface = matchInterface(line);
-    if (iface) {
-      if (isCursorInside(i)) {
-        containerName = iface;
-        containerType = 'interface';
-        containerIndex = i;
-      }
-      break;
-    }
-
+    if (iface) { if (isCursorInside(i)) { containerName = iface; containerType = 'interface';    containerIndex = i; } break; }
     const pyCls = matchPyClass(line);
-    if (pyCls) {
-      if (isCursorInside(i)) {
-        containerName = pyCls;
-        containerType = 'Python class';
-        containerIndex = i;
-      }
-      break;
-    }
+    if (pyCls) { if (isCursorInsidePython(i)) { containerName = pyCls; containerType = 'Python class'; containerIndex = i; } break; }
+    const en = matchEnum(line);
+    if (en) { if (isCursorInside(i)) { containerName = en; containerType = 'enum'; containerIndex = i; } break; }
   }
 
-
-  // ── STEP 2a: cursor IS inside a container ──────────────────────────────────
-  // search ONLY between container declaration and cursor — never above the class
+  
+//if cursor is inside a conatiner
   if (containerName && containerIndex !== -1) {
 
-    // look for method or function inside the class first
     for (let i = cursorIndex; i > containerIndex; i--) {
       const line = lines[i];
+
+      const decorator = matchDecorator(line);
+      if (decorator) {
+        return `You were ${verb} near \`@${decorator}\` in ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
+      }
 
       const method = matchMethod(line);
       if (method) {
-        return `Where you left off: in ${containerType} \`${containerName}\` — editing method \`${method}()\` in \`${fileName}\` at line ${position.line + 1}`;
+        return `You were ${verb} \`${method}()\` in ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
       }
       const fn = matchFunction(line);
       if (fn) {
-        return `Where you left off: in ${containerType} \`${containerName}\` — editing function \`${fn}()\` in \`${fileName}\` at line ${position.line + 1}`;
+        return `You were ${verb} \`${fn}()\` in ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
       }
       const arrow = matchArrow(line);
       if (arrow) {
-        return `Where you left off: in ${containerType} \`${containerName}\` — editing arrow function \`${arrow}()\` in \`${fileName}\` at line ${position.line + 1}`;
+        return `You were ${verb} \`${arrow}()\` in ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
+      }
+      const pyFn = matchPyFunction(line);
+      if (pyFn) {
+        return `You were ${verb} \`${pyFn}()\` in ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
       }
     }
-
-    //no method found — look for variable or comment inside the class
+    
+    //var fallback
     for (let i = cursorIndex; i > containerIndex; i--) {
-      const line = lines[i];
-
-      const variable = matchVariable(line);
+      const variable = matchVariable(lines[i]);
       if (variable) {
-        return `Where you left off: in ${containerType} \`${containerName}\` — near variable \`${variable}\` in \`${fileName}\` at line ${position.line + 1}`;
-      }
-      const comment = matchComment(line);
-      if (comment) {
-        return `Where you left off: in ${containerType} \`${containerName}\` — near comment: "${comment}" in \`${fileName}\` at line ${position.line + 1}`;
+        return `You were ${verb} ${containerType} \`${containerName}\` near \`${variable}\` — \`${fileName}\` line ${position.line + 1}`;
       }
     }
-
-    //inside container but nothing specific found at all
-    return `Where you left off: in ${containerType} \`${containerName}\` in \`${fileName}\` at line ${position.line + 1}`;
+    
+    //scope fallback
+    return `You were ${verb} ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
   }
 
 
-  //STEP 2: cursor is NOT inside any container
-  // stop searching if we hit a class/interface boundary going upward
+  //if cursor wasnt inside any container
   for (let i = cursorIndex; i >= 0; i--) {
-    const line = lines[i];
+    const line = lines[i]; 
+    if (isContainerLine(line)) { break; }
 
-    if (isContainerLine(line)) {
-      break;
+    const decorator = matchDecorator(line);
+    if (decorator) {
+      return `You were ${verb} near \`@${decorator}\` — \`${fileName}\` line ${position.line + 1}`;
     }
 
+    //check standalone functions
+    const method = matchMethod(line);
+    if (method) {
+      return `You were ${verb} \`${method}()\` — \`${fileName}\` line ${position.line + 1}`;
+    }
     const fn = matchFunction(line);
     if (fn) {
-      return `Where you left off: Editing function \`${fn}()\` in \`${fileName}\` at line ${position.line + 1}`;
+      return `You were ${verb} \`${fn}()\` — \`${fileName}\` line ${position.line + 1}`;
     }
     const arrow = matchArrow(line);
     if (arrow) {
-      return `Where you left off: Editing arrow function \`${arrow}()\` in \`${fileName}\` at line ${position.line + 1}`;
+      return `You were ${verb} \`${arrow}()\` — \`${fileName}\` line ${position.line + 1}`;
     }
     const pyFn = matchPyFunction(line);
     if (pyFn) {
-      return `Where you left off: Editing Python function \`${pyFn}()\` in \`${fileName}\` at line ${position.line + 1}`;
+      return `You were ${verb} \`${pyFn}()\` — \`${fileName}\` line ${position.line + 1}`;
     }
   }
-
-
-
-  // take 3: lao el hagat el t2ela msh mawgoda look for vars or comments
-
+  
+  //variables fallback
   for (let i = cursorIndex; i >= 0; i--) {
-    const line = lines[i];
-
-    const variable = matchVariable(line);
+    const variable = matchVariable(lines[i]);
     if (variable) {
-      return `Where you left off: near variable \`${variable}\` in \`${fileName}\` at line ${position.line + 1}`;
-    }
-    const comment = matchComment(line);
-    if (comment) {
-      return `Where you left off: near comment: "${comment}" in \`${fileName}\` at line ${position.line + 1}`;
+      return `You were ${verb} \`${fileName}\` near \`${variable}\` — line ${position.line + 1}`;
     }
   }
 
-
-  //THE fallback: if none of patterns match i still have a summary just not as informative
-  return `Where you left off: in \`${fileName}\` at line ${position.line + 1}`;
+//absolute fallback
+  return `You were ${verb} \`${fileName}\` — line ${position.line + 1}`;
 }
 
 
-//The activation function
+//configs matchers
+
+function matchYaml(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
+  const fileName  = path.basename(doc.fileName);
+  let bestKey: string | null = null; 
+  let bestIndent  = Infinity;
+  for (let i = pos.line; i >= 0; i--) {
+    const line = doc.lineAt(i).text;
+    const m    = line.match(/^(\s*)([\w-]+)\s*:/);
+    if (m) {
+      const indent = m[1].length;
+      if (indent < bestIndent) { bestIndent = indent; bestKey = m[2]; }
+      if (indent === 0) { break; }
+    }
+  }
+  return bestKey
+    ? `You were ${verb} YAML block \`${bestKey}\` — \`${fileName}\` line ${pos.line + 1}`
+    : `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
+}
+
+function matchDockerfile(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
+  const fileName = path.basename(doc.fileName);
+  for (let i = pos.line; i >= 0; i--) {
+    const line = doc.lineAt(i).text.trim();
+    const m    = line.match(/^(FROM|RUN|COPY|ADD|CMD|ENTRYPOINT|ENV|EXPOSE|WORKDIR|ARG)\b/);
+    if (m) {
+      return `You were ${verb} \`${fileName}\` near \`${m[1]}\` instruction — line ${pos.line + 1}`;
+    }
+  }
+  return `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
+}
+
+function matchJenkinsfile(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
+  const fileName = path.basename(doc.fileName);
+  for (let i = pos.line; i >= 0; i--) {
+    const line = doc.lineAt(i).text;
+    const m    = line.match(/stage\s*\(\s*['"](.+?)['"]/);
+    if (m) {
+      return `You were ${verb} Jenkins stage \`${m[1]}\` — \`${fileName}\` line ${pos.line + 1}`;
+    }
+  }
+  return `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
+}
+
+function matchToml(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
+  const fileName = path.basename(doc.fileName);
+  for (let i = pos.line; i >= 0; i--) {
+    const line = doc.lineAt(i).text.trim();
+    const m    = line.match(/^\[(.+?)\]/);
+    if (m) {
+      return `You were ${verb} TOML section \`[${m[1]}]\` — \`${fileName}\` line ${pos.line + 1}`;
+    }
+  }
+  return `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
+}
+
+function matchJson(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
+  const fileName = path.basename(doc.fileName);
+  for (let i = pos.line; i >= 0; i--) {
+    const line = doc.lineAt(i).text.trim();
+    const m    = line.match(/^"([\w-]+)"\s*:/);
+    if (m) {
+      return `You were ${verb} \`${fileName}\` near key \`${m[1]}\` — line ${pos.line + 1}`;
+    }
+  }
+  return `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
+}
+
+function matchMakefile(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
+  const fileName = path.basename(doc.fileName);
+  for (let i = pos.line; i >= 0; i--) {
+    const line = doc.lineAt(i).text;
+    const m    = line.match(/^([\w-]+)\s*:/);
+    if (m && !m[1].startsWith('.')) {
+      return `You were ${verb} Makefile target \`${m[1]}\` — \`${fileName}\` line ${pos.line + 1}`;
+    }
+  }
+  return `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
+}
+
+
+
+
 export function activateHeuristic(context: vscode.ExtensionContext) {
   console.log('FocusShift: Heuristic summary engine ready');
 
-  //test command
   const testCmd = vscode.commands.registerCommand('focusshift.testHeuristic', () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
       vscode.window.showWarningMessage('Open a file first!');
       return;
     }
-    const result = getHeuristicSummary(editor.document, editor.selection.active);
+
+    const result = getHeuristicSummary(editor.document, editor.selection.active, 0, 0);
     vscode.window.showInformationMessage(`FocusShift: ${result}`);
     console.log('Heuristic result:', result);
   });
 
   context.subscriptions.push(testCmd);
 }
-
-// for test purposes: added:
-// {
-//   "command": "focusshift.testHeuristic",
-//   "title": "FocusShift: Test Heuristic Summary"
-// } in package.json
