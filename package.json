@@ -3,7 +3,7 @@
   "displayName": "FocusShift",
   "description": "Never lose your coding context — auto chime + smart summary on return",
   "version": "0.1.0",
-  "publisher": "your-team-name",
+  "publisher": "FocusShift Team",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -32,11 +32,6 @@
           "type": "boolean",
           "default": true,
           "description": "Use AI (Ollama) to generate context summaries. Disable to use heuristic summaries only."
-        },
-        "focusshift.llmModel": {
-          "type": "string",
-          "default": "qwen2.5-coder:1.5b-instruct",
-          "description": "Ollama model to use for AI summaries"
         },
         "focusshift.useCustomLLM": {
           "type": "boolean",

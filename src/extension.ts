@@ -6,7 +6,6 @@ import { activatePopup } from "./ui/popupManager";
 import { activateHeuristic } from "./summary/heuristic";
 import { HistoryService } from "./history/HistoryService";
 import { HistoryPanel } from "./history/HistoryPanel";
-import { EditorContext } from "./core/stateManager";
 import { execSync } from 'child_process';
 
 function isOllamaInstalled(): boolean {
@@ -78,11 +77,11 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window
       .showInformationMessage(
         "FocusShift is active! For AI-powered summaries, install Ollama. Click to learn more.",
-        "Learn More",
+        "Continue",
         "Dismiss",
       )
       .then((selection) => {
-        if (selection === "Learn More") {
+        if (selection === "Continue") {
           vscode.commands.executeCommand("focusshift.setupOllama");
         }
         // Mark as seen regardless of which button they clicked
@@ -144,19 +143,23 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
     });
+    const CaptureState = vscode.commands.registerCommand('focusshift.capture', () => {
+      stateManager.captureState();
+    })
+
+    const RestoreState  = vscode.commands.registerCommand('focusshift.restore', (skipLLM: boolean = false) => {
+      stateManager.restoreState(skipLLM);
+    })
+
 
   context.subscriptions.push(
     testLLMCmd,
     testPopup,
     showHistoryCmd,
     setupOllama,
-    vscode.commands.registerCommand('focusshift.capture', () => {
-      stateManager.captureState();
-    }),
-    vscode.commands.registerCommand('focusshift.restore', (skipLLM: boolean = false) => {
-      stateManager.restoreState(skipLLM);
-    }),
-  );    
+    CaptureState,
+    RestoreState,
+  );
 }
 
 export function deactivate() {

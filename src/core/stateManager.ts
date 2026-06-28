@@ -226,10 +226,10 @@ export class StateManager {
     // Use the active editor's context for the LLM summary
     const activeCtx = state.editors.find(e => e.fileUri === state.activeEditorUri) ?? state.editors[0];
     if (activeCtx) {
-      const useCustomNLP = vscode.workspace.getConfiguration('focusshift').get<boolean>('useCustomNLP', true);
+      const enableLLMSummary = vscode.workspace.getConfiguration('focusshift').get<boolean>('enableLLMSummary', true);
 
       let summary: string | undefined;
-      if (useCustomNLP && !skipLLM) {
+      if (enableLLMSummary && !skipLLM) {
         console.log('FocusShift: Calling LLM summary...');
         console.log('FocusShift: edits:', activeCtx.editHistory.length, 'cursors:', activeCtx.cursorHistory.length, 'scrolls:', activeCtx.scrollHistory.length);
         summary = await this.summaryService.generateLLMSummary(activeCtx);
@@ -238,7 +238,7 @@ export class StateManager {
           this.writeSummaryFile(activeCtx, summary);
         }
       } else {
-        console.log('FocusShift: useCustomNLP disabled — skipping LLM summary, using heuristic only.');
+        console.log('FocusShift: enableLLMSummary disabled — skipping LLM summary, using heuristic only.');
       }
 
       // Record this interruption in the context history
@@ -256,21 +256,6 @@ export class StateManager {
         snapshot: activeCtx
       };
       this.historyService.add(entry);
-    }
-  }
-
-  // --- Restore a single past context picked from the history panel ---
-  public async restoreFromSnapshot(ctx: EditorContext): Promise<void> {
-    try {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(ctx.fileUri));
-      const editor = await vscode.window.showTextDocument(doc, { preview: false });
-      // ctx.position comes back from storage as a plain {line, character} object, not a real vscode.Position
-      const position = new vscode.Position(ctx.position.line, ctx.position.character);
-      editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(new vscode.Range(position, position));
-    } catch (err) {
-      console.error('FocusShift: Failed to restore from history snapshot:', err);
-      vscode.window.showWarningMessage('FocusShift: Could not restore — the file may no longer exist.');
     }
   }
 

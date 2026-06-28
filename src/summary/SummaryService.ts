@@ -84,8 +84,21 @@ export class SummaryService {
     const { focus, instruction } = scenarioConfig[scenario];
 
     const system =
-      'Do NOT start with "Sure", "Of course", "Great", or any filler. Start directly with "You were..." or similar. Do NOT include any code snippets or code blocks in your response. Plain English sentences only. ' +
-      'No sign-off phrases like "If you have any questions, feel free to ask" or "Let me know if you need help". End after your last sentence of context.';
+      'Write in second person ("you"), be warm and encouraging. ' +
+      "Always respond in EXACTLY this format with these three sections and nothing else:\n\n" +
+      "**Where You Were**\n" +
+      "- [bullet points describing the exact file, line, and what the developer was doing]\n\n" +
+      "**Context**\n" +
+      "- [Bullet points about what was happening — recent edits, errors, what they were working through]\n\n" +
+      "**Suggestion**\n" +
+      "- [Bullet points suggesting the most logical next step]\n\n" +
+      'Bold each section headline with double asterisks exactly as shown above, and start every bullet line with "- ". ' +
+      "No extra text before or after these three sections. " +
+      'No filler phrases like "Of course!" or "Sure!" or "Great!" ' +
+      "No code blocks. No code snippets. Plain English only. " +
+      'Do NOT start with "Sure", "Of course", "Great", or any filler. ' +
+      'No sign-off phrases like "If you have any questions, feel free to ask" or "Let me know if you need help". ' +
+      "End after the Suggestion section.";
     const errorSummary = this.summariseErrors(ctx.errors ?? []);
 
     const user =
@@ -123,16 +136,15 @@ export class SummaryService {
 
   private cleanResponse(text: string): string {
     return text
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/\*\*(.*?)\*\*/g, '$1')
-      .replace(/\*(.*?)\*/g, '$1')
-      .replace(/^[-•]\s+/gm, '')
-      .replace(/\n{2,}/g, ' ')
-      .replace(/if you (have|encounter|need|want).{0,120}(ask|me|help)!?\.?/gi, '')
-      .replace(/feel free to .{0,80}!?\.?/gi, '')
-      .replace(/let me know .{0,80}!?\.?/gi, '')
-      .replace(/don't hesitate to .{0,80}!?\.?/gi, '')
-      .replace(/happy to help.{0,50}!?\.?/gi, '')
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(
+        /if you (have|encounter|need|want).{0,120}(ask|me|help)!?\.?/gi,
+        "",
+      )
+      .replace(/feel free to .{0,80}!?\.?/gi, "")
+      .replace(/let me know .{0,80}!?\.?/gi, "")
+      .replace(/don't hesitate to .{0,80}!?\.?/gi, "")
+      .replace(/happy to help.{0,50}!?\.?/gi, "")
       .trim();
   }
 
