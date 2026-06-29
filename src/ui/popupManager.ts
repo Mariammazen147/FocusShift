@@ -55,6 +55,12 @@ function showPopupIfStateExists(context: vscode.ExtensionContext): void {
     const now = Date.now();
     const capturedAt = editorCtx.timestamp ?? parsed.timestamp ?? 0;
     const awaySeconds = capturedAt ? Math.floor((now - capturedAt) / 1000) : 0;
+    //only fire popup after 30 seconds 
+    const minAwaySeconds = vscode.workspace.getConfiguration('focusshift').get<number>('minAwaySeconds', 30);
+    if (awaySeconds < minAwaySeconds) {
+      console.log(`FocusShift popup: away only ${awaySeconds}s — skipping popup`);
+      return;
+    }
     console.log('FocusShift popup: timestamp =', capturedAt, '| now =', now, '| away =', awaySeconds, 's');
 
     state = {

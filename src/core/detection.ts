@@ -8,14 +8,34 @@ export function activateDetection(context: vscode.ExtensionContext, historyServi
   // StateManager instance to handle saving/restoring editor state.
   const stateManager = new StateManager(context.globalState, historyService);
 
-  // --- Window blur detection ---
-  vscode.window.onDidChangeWindowState(state => {
-    if (!state.focused) {
-      stateManager.captureState();
-    } else {
+  // // --- Window blur detection ---
+  // vscode.window.onDidChangeWindowState(state => {
+  //   if (!state.focused) {
+  //     stateManager.captureState();
+  //   } else {
+  //     stateManager.restoreState();
+  //   }
+  // });
+
+
+let blurTime: number | null = null; //exactly when the window lost focus, when the window come back 
+
+vscode.window.onDidChangeWindowState(state => {
+  if (!state.focused) {
+    blurTime = Date.now();
+    stateManager.captureState();
+  } else {
+    const awayMs = blurTime ? Date.now() - blurTime : 0;
+    const minAwaySeconds = vscode.workspace.getConfiguration('focusshift')
+      .get<number>('minAwaySeconds', 30); //user can change it in config
+    if (awayMs >= minAwaySeconds * 1000) {
       stateManager.restoreState();
+    } else {
+      console.log(`FocusShift: away only ${Math.floor(awayMs/1000)}s — skipping popup`);
     }
-  });
+    blurTime = null;
+  }
+});
 
   // --- Inactivity detection ---
   let inactivityTimer: NodeJS.Timeout | null = null;

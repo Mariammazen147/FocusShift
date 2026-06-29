@@ -243,8 +243,12 @@ export class StateManager {
 
       // Record this interruption in the context history
       const doc = activeDoc ?? await vscode.workspace.openTextDocument(vscode.Uri.parse(activeCtx.fileUri));
-      const heuristicSummary = getHeuristicSummary(doc, activeCtx.position);
-
+      const heuristicSummary = getHeuristicSummary(
+      doc,
+      activeCtx.position,
+      activeCtx.editHistory.length,
+      activeCtx.scrollHistory.length
+      );
       const entry: HistoryEntry = {
         id: now.toString(),
         timestamp: now,

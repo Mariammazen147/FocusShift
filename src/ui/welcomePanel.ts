@@ -120,7 +120,7 @@ export class WelcomePanel {
       );
       if (openDoc) {
         const pos = new vscode.Position(state.position?.line ?? 0, state.position?.character ?? 0);
-        return getHeuristicSummary(openDoc, pos);
+        return getHeuristicSummary(openDoc, pos,state.editHistory?.length ?? 0,state.scrollHistory?.length ?? 0);
       }
     } catch { /* ignore */ }
     return this.buildContextDescription(state);

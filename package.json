@@ -37,6 +37,11 @@
           "type": "boolean",
           "default": true,
           "description": "Use our custom-trained LLM for summaries"
+        },
+        "focusshift.minAwaySeconds": {
+          "type": "number",
+          "default": 30,
+          "description": "Minimum seconds away before FocusShift shows the context popup."
         }
       }
     },
