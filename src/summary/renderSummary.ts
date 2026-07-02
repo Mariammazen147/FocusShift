@@ -1,4 +1,4 @@
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -7,7 +7,7 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function formatInline(line: string): string {
+export function formatInline(line: string): string {
   return escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }
 
@@ -43,7 +43,9 @@ export function renderSummaryHtml(text: string): string {
 /** Collapses summary markdown down to a single-line plain-text preview. */
 export function stripSummaryMarkdown(text: string): string {
   return text
+    .replace(/```[\s\S]*?```/g, '')
     .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
     .replace(/^[-•]\s+/gm, '')
     .replace(/\s+/g, ' ')
     .trim();
