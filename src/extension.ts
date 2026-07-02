@@ -6,6 +6,7 @@ import { activatePopup } from "./ui/popupManager";
 import { activateHeuristic } from "./summary/heuristic";
 import { HistoryService } from "./history/HistoryService";
 import { HistoryPanel } from "./history/HistoryPanel";
+import { SidebarProvider } from "./ui/Sidebarprovider";
 import { execSync } from 'child_process';
 
 function isOllamaInstalled(): boolean {
@@ -34,6 +35,16 @@ export function activate(context: vscode.ExtensionContext) {
   activateChime(context);
   activatePopup(context);
   activateHeuristic(context);
+
+  // Sidebar: lets the user reach Settings / History / Setup Ollama
+  // at any time, not just when the popup happens to be showing.
+  const sidebarProvider = new SidebarProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      SidebarProvider.viewType,
+      sidebarProvider,
+    ),
+  );
 
   const showHistoryCmd = vscode.commands.registerCommand(
     "focusshift.showHistory",

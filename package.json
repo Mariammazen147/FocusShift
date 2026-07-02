@@ -15,6 +15,24 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "focusshift-sidebar",
+          "title": "FocusShift",
+          "icon": "media/sidebar-icon.png"
+        }
+      ]
+    },
+    "views": {
+      "focusshift-sidebar": [
+        {
+          "type": "webview",
+          "id": "focusshift.sidebarView",
+          "name": "FocusShift"
+        }
+      ]
+    },
     "configuration": {
       "title": "FocusShift",
       "properties": {

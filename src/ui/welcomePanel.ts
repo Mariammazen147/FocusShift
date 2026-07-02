@@ -4,6 +4,7 @@ import { EditorContext } from '../core/stateManager';
 import { playChimeIfEnabled } from '../audio/chimePlayer';
 import { SummaryService } from '../summary/SummaryService';
 import { getHeuristicSummary } from '../summary/heuristic';
+import { getOllamaStatus } from '../setup/ollamastatus';
 
 /**
  * Manages the lifecycle of the FocusShift welcome-back webview panel.
@@ -75,6 +76,15 @@ export class WelcomePanel {
         break;
       case 'dismiss':
         this.dispose();
+        break;
+      case 'openSettings':
+        vscode.commands.executeCommand('workbench.action.openSettings', 'focusshift');
+        break;
+      case 'openHistory':
+        vscode.commands.executeCommand('focusshift.showHistory');
+        break;
+      case 'setupOllama':
+        vscode.commands.executeCommand('focusshift.setupOllama');
         break;
     }
   }
@@ -150,6 +160,19 @@ export class WelcomePanel {
       : llmEnabled
         ? `<span class="llm-badge heuristic">${svgZap} Quick</span>`
         : `<span class="llm-badge heuristic">${svgZap} Heuristic</span>`;
+
+    // ── Ollama status, used to grey out the "Setup Ollama" menu item ──
+    const ollamaStatus = getOllamaStatus();
+    const ollamaReady  = ollamaStatus.installed && ollamaStatus.modelReady;
+    const setupMenuItem = ollamaReady
+      ? `<div class="menu-item disabled">
+           <span>Setup Ollama</span>
+           <span class="menu-status">✓ Ready</span>
+         </div>`
+      : `<button class="menu-item" id="menuSetupOllama">
+           <span>Setup Ollama</span>
+           <span class="menu-status muted">${ollamaStatus.installed ? 'Model missing' : 'Not installed'}</span>
+         </button>`;
 
     return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -245,6 +268,50 @@ export class WelcomePanel {
       transition: background 0.15s;
     }
     .btn-icon:hover { background: rgba(255,255,255,0.3); }
+
+    /* ── ⋯ menu ── */
+    .menu-wrap { position: relative; }
+
+    .menu-dropdown {
+      display: none;
+      position: absolute;
+      top: 36px;
+      right: 0;
+      background: #1e2130;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      overflow: hidden;
+      z-index: 10;
+      min-width: 200px;
+    }
+    .menu-dropdown.open { display: block; }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .menu-item:hover { background: #252840; }
+    .menu-item.disabled { cursor: default; opacity: 0.65; }
+
+    .menu-status {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #16825d;
+      color: #fff;
+    }
+    .menu-status.muted { background: #475569; }
 
     /* ── Body ── */
     .card-body {
@@ -392,6 +459,14 @@ export class WelcomePanel {
         </div>
       </div>
       <div class="header-actions">
+        <div class="menu-wrap">
+          <button class="btn-icon" id="btnMenu" title="More">⋯</button>
+          <div class="menu-dropdown" id="menuDropdown">
+            <button class="menu-item" id="menuSettings">Settings</button>
+            <button class="menu-item" id="menuHistory">Context History</button>
+            ${setupMenuItem}
+          </div>
+        </div>
         <button class="btn-icon" id="btnClose" title="Dismiss">✕</button>
       </div>
     </div>
@@ -447,6 +522,33 @@ export class WelcomePanel {
     document.getElementById('btnJump').addEventListener('click',  () => dismiss('jump'));
     document.getElementById('btnClose').addEventListener('click', () => dismiss('dismiss'));
     document.addEventListener('keydown', e => { if (e.key === 'Escape') dismiss('dismiss'); });
+
+    // ── ⋯ menu ──
+    const menuBtn = document.getElementById('btnMenu');
+    const menuDropdown = document.getElementById('menuDropdown');
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menuDropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', () => menuDropdown.classList.remove('open'));
+
+    document.getElementById('menuSettings').addEventListener('click', () => {
+      vscode.postMessage({ command: 'openSettings' });
+      menuDropdown.classList.remove('open');
+    });
+    document.getElementById('menuHistory').addEventListener('click', () => {
+      vscode.postMessage({ command: 'openHistory' });
+      menuDropdown.classList.remove('open');
+    });
+    const menuSetup = document.getElementById('menuSetupOllama');
+    if (menuSetup) {
+      menuSetup.addEventListener('click', () => {
+        vscode.postMessage({ command: 'setupOllama' });
+        menuDropdown.classList.remove('open');
+      });
+    }
   </script>
 </body>
 </html>`;
