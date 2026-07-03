@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+// Generic names that don't tell you anything useful when reported back to
+// the user (e.g. "you were near `i`" is meaningless) — so we skip them
+// when looking for a variable to describe.
 const SKIP_VARS = new Set([
   'i', 'j', 'k', 'x', 'y', 'z', 'm', 'n', 'e', 'r', 't',
   'err', 'res', 'req', 'ctx', 'msg', 'tmp', 'val', 'key',
@@ -9,24 +12,24 @@ const SKIP_VARS = new Set([
   'method', 'fn', 'cb', 'resolve', 'reject', 'response'
 ]);
 
-//editCount and scrollCount come from EditorContext tracked in stateManager
+// editCount / scrollCount come from the EditorContext tracked in stateManager.ts
 function pickVerb(editCount: number, scrollCount: number): string {
   if (scrollCount > editCount * 2 && scrollCount > 3) { return 'reading through'; }
   if (editCount > 5) { return 'writing in'; }
   return 'working in';
 }
 
-export function getHeuristicSummary( 
+export function getHeuristicSummary(
   document: vscode.TextDocument,
   position: vscode.Position,
   editCount: number   = 0,
   scrollCount: number = 0
 ): string {
-
   const fileName = path.basename(document.fileName);
   const verb = pickVerb(editCount, scrollCount);
 
-//language routing
+  // Config/markup files don't have functions or classes, so they get their
+  // own matchers instead of falling through the class/function logic below.
   const langId = document.languageId;
   if (langId === 'yaml' || langId === 'dockercompose') { return matchYaml(document, position, verb); }
   if (langId === 'dockerfile')                          { return matchDockerfile(document, position, verb); }
@@ -35,7 +38,8 @@ export function getHeuristicSummary(
   if (langId === 'json' || langId === 'jsonc')          { return matchJson(document, position, verb); }
   if (langId === 'makefile')                            { return matchMakefile(document, position, verb); }
 
-  //position line returns ex iu am on line 50, 50-20=30 ->therefore we start reading from line 30 
+  // Grab a window of lines around the cursor (20 lines back, 3 lines ahead)
+  // to scan for the nearest class/function/variable.
   const startLine = Math.max(0, position.line - 20);
   const endLine   = Math.min(document.lineCount - 1, position.line + 3);
   const lines: string[] = [];
@@ -43,12 +47,11 @@ export function getHeuristicSummary(
     lines.push(document.lineAt(i).text);
   }
 
-  //how far cursor is from lines[start]
+  // Cursor's row within the `lines` window above.
   const cursorIndex = position.line - startLine;
 
+  // --- regex matchers for the constructs we care about ---
 
-
-  //matchers
   function matchClass(line: string): string | null {
     const m = line.trim().match(/^(?:export\s+)?(?:abstract\s+)?class\s+(\w+)/);
     return m ? m[1] : null;
@@ -74,7 +77,7 @@ export function getHeuristicSummary(
     return m ? m[1] : null;
   }
 
-  function matchMethod(line: string): string | null { 
+  function matchMethod(line: string): string | null {
     const cleaned = line
       .replace(/\b(public|private|protected|static|async|abstract|override|readonly)\b/g, '')
       .trim();
@@ -100,11 +103,12 @@ export function getHeuristicSummary(
     return m ? m[1] : null;
   }
 
-  //matches variable name and skips the => in arrow function so it would only cmtch to var name not match an arrow function (edge case)
- 
+  // Matches a variable declaration. The `[^>]` after `=` stops this from
+  // also matching arrow functions (`const x = () =>`), which are handled
+  // by matchArrow instead.
   function matchVariable(line: string): string | null {
     const m = line.trim().match(/(?:const|let|var)\s+(\w+)\s*=[^>]/);
-    if (m && !SKIP_VARS.has(m[1]) && m[1].length > 2) { return m[1]; } //not in the block of useless var names,  name is longer than 2 chars so no fn
+    if (m && !SKIP_VARS.has(m[1]) && m[1].length > 2) { return m[1]; }
     return null;
   }
 
@@ -115,12 +119,13 @@ export function getHeuristicSummary(
            matchEnum(line) !== null;
   }
 
-
-  //depth tracking
+  // Walks forward from a candidate container line, counting braces, to
+  // confirm the cursor is actually still inside that class/interface/enum
+  // body and not just below it in the file.
   function isCursorInside(containerIndex: number): boolean {
-    let depth = 0; 
+    let depth = 0;
     let foundOpen = false;
-    for (let i = containerIndex; i <= cursorIndex; i++) { 
+    for (let i = containerIndex; i <= cursorIndex; i++) {
       for (const char of (lines[i] || '')) {
         if (char === '{') { depth++; foundOpen = true; }
         if (char === '}') {
@@ -128,30 +133,32 @@ export function getHeuristicSummary(
           if (foundOpen && depth === 0 && i < cursorIndex) { return false; }
         }
       }
-    } 
+    }
     return foundOpen && depth > 0;
   }
 
+  // Python has no braces, so containment is based on indentation instead:
+  // as long as every line down to the cursor is indented deeper than the
+  // `class` line, the cursor is still inside it.
   function isCursorInsidePython(containerIndex: number): boolean {
     const containerIndent = (lines[containerIndex].match(/^(\s*)/) || ['', ''])[1].length;
     for (let i = containerIndex + 1; i <= cursorIndex; i++) {
       const line = lines[i];
-      if (line.trim() === '') { continue; } // blank lines don't count
+      if (line.trim() === '') { continue; }
       const lineIndent = (line.match(/^(\s*)/) || ['', ''])[1].length;
-      if (lineIndent <= containerIndent) { return false; } // dedented back out — left the class
+      if (lineIndent <= containerIndent) { return false; }
     }
     return true;
   }
 
-
-  //find nearest class/interface above cursor
+  // Look upward from the cursor for the nearest enclosing class/interface/enum.
   let containerName: string | null = null;
-  let containerType: string | null = null; 
+  let containerType: string | null = null;
   let containerIndex: number = -1;
 
   for (let i = cursorIndex; i >= 0; i--) {
-    const line  = lines[i]; 
-    const cls   = matchClass(line); 
+    const line  = lines[i];
+    const cls   = matchClass(line);
     if (cls)   { if (isCursorInside(i)) { containerName = cls;   containerType = 'class';        containerIndex = i; } break; }
     const iface = matchInterface(line);
     if (iface) { if (isCursorInside(i)) { containerName = iface; containerType = 'interface';    containerIndex = i; } break; }
@@ -161,10 +168,9 @@ export function getHeuristicSummary(
     if (en) { if (isCursorInside(i)) { containerName = en; containerType = 'enum'; containerIndex = i; } break; }
   }
 
-  
-//if cursor is inside a conatiner
   if (containerName && containerIndex !== -1) {
-
+    // Cursor is inside a class/interface/enum — look for the nearest
+    // method/function/decorator between the container and the cursor.
     for (let i = cursorIndex; i > containerIndex; i--) {
       const line = lines[i];
 
@@ -190,23 +196,23 @@ export function getHeuristicSummary(
         return `You were ${verb} \`${pyFn}()\` in ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
       }
     }
-    
-    //var fallback
+
+    // No method/function nearby — fall back to the nearest variable.
     for (let i = cursorIndex; i > containerIndex; i--) {
       const variable = matchVariable(lines[i]);
       if (variable) {
         return `You were ${verb} ${containerType} \`${containerName}\` near \`${variable}\` — \`${fileName}\` line ${position.line + 1}`;
       }
     }
-    
-    //scope fallback
+
+    // Nothing more specific found — just report the container itself.
     return `You were ${verb} ${containerType} \`${containerName}\` — \`${fileName}\` line ${position.line + 1}`;
   }
 
-
-  //if cursor wasnt inside any container
+  // Cursor isn't inside any class/interface/enum — look for a standalone
+  // function/method/decorator instead.
   for (let i = cursorIndex; i >= 0; i--) {
-    const line = lines[i]; 
+    const line = lines[i];
     if (isContainerLine(line)) { break; }
 
     const decorator = matchDecorator(line);
@@ -214,7 +220,6 @@ export function getHeuristicSummary(
       return `You were ${verb} near \`@${decorator}\` — \`${fileName}\` line ${position.line + 1}`;
     }
 
-    //check standalone functions
     const method = matchMethod(line);
     if (method) {
       return `You were ${verb} \`${method}()\` — \`${fileName}\` line ${position.line + 1}`;
@@ -232,8 +237,8 @@ export function getHeuristicSummary(
       return `You were ${verb} \`${pyFn}()\` — \`${fileName}\` line ${position.line + 1}`;
     }
   }
-  
-  //variables fallback
+
+  // Still nothing — fall back to the nearest variable declaration.
   for (let i = cursorIndex; i >= 0; i--) {
     const variable = matchVariable(lines[i]);
     if (variable) {
@@ -241,17 +246,18 @@ export function getHeuristicSummary(
     }
   }
 
-//absolute fallback
+  // Absolute fallback — just the file and line number.
   return `You were ${verb} \`${fileName}\` — line ${position.line + 1}`;
 }
 
-
-//configs matchers
+// --- matchers for non-code file formats (YAML, Dockerfile, TOML, JSON, Makefile, Jenkinsfile) ---
 
 function matchYaml(doc: vscode.TextDocument, pos: vscode.Position, verb: string): string {
   const fileName  = path.basename(doc.fileName);
-  let bestKey: string | null = null; 
+  let bestKey: string | null = null;
   let bestIndent  = Infinity;
+  // Walk upward tracking the shallowest-indented key seen — that's the
+  // top-level YAML block the cursor is nested under.
   for (let i = pos.line; i >= 0; i--) {
     const line = doc.lineAt(i).text;
     const m    = line.match(/^(\s*)([\w-]+)\s*:/);
@@ -326,12 +332,8 @@ function matchMakefile(doc: vscode.TextDocument, pos: vscode.Position, verb: str
   return `You were ${verb} \`${fileName}\` — line ${pos.line + 1}`;
 }
 
-
-
-
+/** Registers the "FocusShift: Test Heuristic" debug command. */
 export function activateHeuristic(context: vscode.ExtensionContext) {
-  console.log('FocusShift: Heuristic summary engine ready');
-
   const testCmd = vscode.commands.registerCommand('focusshift.testHeuristic', () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -341,7 +343,6 @@ export function activateHeuristic(context: vscode.ExtensionContext) {
 
     const result = getHeuristicSummary(editor.document, editor.selection.active, 0, 0);
     vscode.window.showInformationMessage(`FocusShift: ${result}`);
-    console.log('Heuristic result:', result);
   });
 
   context.subscriptions.push(testCmd);

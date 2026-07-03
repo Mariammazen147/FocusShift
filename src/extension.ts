@@ -7,25 +7,7 @@ import { activateHeuristic } from "./summary/heuristic";
 import { HistoryService } from "./history/HistoryService";
 import { HistoryPanel } from "./history/HistoryPanel";
 import { SidebarProvider } from "./ui/Sidebarprovider";
-import { execSync } from 'child_process';
-
-function isOllamaInstalled(): boolean {
-  try {
-    execSync('ollama --version', { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isModelInstalled(): boolean {
-  try {
-    const output = execSync('ollama list', { encoding: 'utf8' });
-    return output.includes('qwen2.5-coder:1.5b-instruct');
-  } catch {
-    return false;
-  }
-}
+import { isOllamaInstalled } from "./setup/ollamastatus";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("FocusShift is now active!");
@@ -60,7 +42,6 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
-
   // Test command to force-show the welcome popup with fake data
   const testPopup = vscode.commands.registerCommand(
     "focusshift.testPopup",
@@ -79,6 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
     },
   );
+  // First-run nudge: point new users at Ollama setup once, then never again.
   const hasSeenOllamaPrompt = context.globalState.get<boolean>(
     "focusshift.hasSeenOllamaPrompt",
     false,
@@ -100,76 +82,75 @@ export function activate(context: vscode.ExtensionContext) {
       });
   }
   const setupOllama = vscode.commands.registerCommand("focusshift.setupOllama", async () => {
-      const platform = process.platform; 
+    const platform = process.platform;
 
-      // Step 1 — Tell the user what's about to happen
-      const choice = await vscode.window.showInformationMessage(
-        "FocusShift will open a terminal and install Ollama + the required AI model (qwen2.5-coder:1.5b-instruct). This may take a few minutes depending on your internet speed.",
-        "Continue",
-        "Cancel",
-      );
+    // Step 1 — tell the user what's about to happen before we touch anything
+    const choice = await vscode.window.showInformationMessage(
+      "FocusShift will open a terminal and install Ollama + the required AI model (qwen2.5-coder:1.5b-instruct). This may take a few minutes depending on your internet speed.",
+      "Continue",
+      "Cancel",
+    );
 
-      if (choice !== "Continue") {
-        return;
-      }
+    if (choice !== "Continue") {
+      return;
+    }
 
-      // Step 2 — Open a dedicated terminal
-      const terminal = vscode.window.createTerminal("FocusShift Setup");
-      terminal.show();
-
-      // Step 3 — Run the right install command per OS
-      if (platform === "linux" || platform === "darwin") {
-        if (!isOllamaInstalled()) {
-        terminal.sendText(
-          'curl -fsSL https://ollama.com/install.sh | sh && ollama pull qwen2.5-coder:1.5b-instruct'
+    // Windows doesn't have a one-line curl installer like Linux/macOS, so it
+    // gets its own terminal-less branch that just opens the download page.
+    if (platform === "win32") {
+      if (isOllamaInstalled()) {
+        const terminal = vscode.window.createTerminal("FocusShift Setup");
+        terminal.show();
+        terminal.sendText("ollama pull qwen2.5-coder:1.5b-instruct");
+        vscode.window.showInformationMessage(
+          "Downloading AI model (~1GB). Keep the terminal open until it finishes."
+        );
+      } else {
+        vscode.env.openExternal(
+          vscode.Uri.parse("https://ollama.com/download/windows")
         );
         vscode.window.showInformationMessage(
-          'Installing Ollama and downloading AI model (~1GB). Keep the terminal open until it finishes.'
+          'Download and run the Ollama installer for Windows. Once installed, run "FocusShift: Setup Ollama" again to pull the AI model automatically.'
         );
-        } else {
-          terminal.sendText(
-            'ollama pull qwen2.5-coder:1.5b-instruct'
-          );
-          vscode.window.showInformationMessage(
-            'Downloading AI model (~1GB). Keep the terminal open until it finishes.'
-          );
-        }
-      } else if (platform === 'win32') {
-        if (isOllamaInstalled()) {
-          // Ollama already installed — just pull the model
-          const terminal = vscode.window.createTerminal('FocusShift Setup');
-          terminal.show();
-          terminal.sendText('ollama pull qwen2.5-coder:1.5b-instruct');
-          vscode.window.showInformationMessage(
-            'Downloading AI model (~1GB). Keep the terminal open until it finishes.'
-          );
-        } else {
-          // Not installed — show the link + existing message
-          vscode.env.openExternal(
-            vscode.Uri.parse('https://ollama.com/download/windows')
-          );
-          vscode.window.showInformationMessage(
-            'Download and run the Ollama installer for Windows. Once installed, run "FocusShift: Setup Ollama" again to pull the AI model automatically.'
-          );
-        }
       }
-    });
-    const CaptureState = vscode.commands.registerCommand('focusshift.capture', () => {
-      stateManager.captureState();
-    })
+      return;
+    }
 
-    const RestoreState  = vscode.commands.registerCommand('focusshift.restore', (skipLLM: boolean = false) => {
-      stateManager.restoreState(skipLLM);
-    })
+    // Step 2 — Linux/macOS: same terminal handles both installing Ollama
+    // (if missing) and pulling the model.
+    const terminal = vscode.window.createTerminal("FocusShift Setup");
+    terminal.show();
 
+    if (!isOllamaInstalled()) {
+      terminal.sendText(
+        'curl -fsSL https://ollama.com/install.sh | sh && ollama pull qwen2.5-coder:1.5b-instruct'
+      );
+      vscode.window.showInformationMessage(
+        'Installing Ollama and downloading AI model (~1GB). Keep the terminal open until it finishes.'
+      );
+    } else {
+      terminal.sendText('ollama pull qwen2.5-coder:1.5b-instruct');
+      vscode.window.showInformationMessage(
+        'Downloading AI model (~1GB). Keep the terminal open until it finishes.'
+      );
+    }
+  });
+
+  const captureStateCmd = vscode.commands.registerCommand('focusshift.capture', () => {
+    stateManager.captureState();
+  });
+
+  const restoreStateCmd = vscode.commands.registerCommand('focusshift.restore', (skipLLM: boolean = false) => {
+    stateManager.restoreState(skipLLM);
+  });
 
   context.subscriptions.push(
     testLLMCmd,
     testPopup,
     showHistoryCmd,
     setupOllama,
-    CaptureState,
-    RestoreState,
+    captureStateCmd,
+    restoreStateCmd,
   );
 }
 

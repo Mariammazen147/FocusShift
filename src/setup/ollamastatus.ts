@@ -1,6 +1,3 @@
-// TEMP TEST — remove before commit
-// const FORCE_OLLAMA_STATE: OllamaStatus | null = { installed: false, modelReady: false };
-
 import { execSync } from 'child_process';
 
 // The exact model FocusShift depends on for AI summaries.
@@ -45,18 +42,13 @@ const CACHE_TTL_MS = 30_000;
  * only when the user explicitly asks to recheck (e.g. the sidebar's
  * refresh button).
  */
-
-
 export function getOllamaStatus(forceRefresh = false): OllamaStatus {
-  // if (FORCE_OLLAMA_STATE) { return FORCE_OLLAMA_STATE; }
   const now = Date.now();
   if (!forceRefresh && cachedStatus && now - cachedAt < CACHE_TTL_MS) {
     return cachedStatus;
   }
   const installed = isOllamaInstalled();
   const modelReady = installed ? isModelInstalled() : false;
-  // const installed = false;
-  // const modelReady = false;
   cachedStatus = { installed, modelReady };
   cachedAt = now;
   return cachedStatus;

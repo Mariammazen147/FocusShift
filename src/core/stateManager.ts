@@ -80,7 +80,7 @@ export class StateManager {
     });
   }
 
-  // --- Capture current workspace state ---
+  /** Snapshot every visible editor's cursor, diagnostics, and recent activity into storage. */
   public captureState() {
     const editors = vscode.window.visibleTextEditors;
     if (editors.length === 0) {
@@ -126,7 +126,7 @@ export class StateManager {
     console.log(`FocusShift: State captured for ${editors.length} editors`);
   }
 
-  // --- Test command: run LLM on current editor state without blur/refocus ---
+  /** Debug command: runs the LLM summary on the current editor state without requiring a blur/refocus cycle. */
   public async testLLMNow() {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -172,7 +172,7 @@ export class StateManager {
     }
   }
 
-  // --- Restore saved workspace state ---
+  /** Reopens the editors captured by captureState and records the interruption in history. */
   public async restoreState(skipLLM: boolean = false) {
     const raw = this.storage.get<string>('focusshift.lastState');
     if (!raw) {
@@ -257,7 +257,7 @@ export class StateManager {
   }
 
 
-  // --- Helper: extract nearest enclosing function/method/arrow ---
+  /** Finds the function/method/arrow-function body enclosing the cursor, falling back to a +/-5 line window. */
   private extractEnclosingBlock(doc: vscode.TextDocument, pos: vscode.Position): string {
     const text = doc.getText();
     const offset = doc.offsetAt(pos);

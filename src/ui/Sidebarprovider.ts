@@ -66,7 +66,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const ollamaRow = ollamaReady
       ? `<div class="row disabled">
            <span class="row-label">Setup Ollama</span>
-           <span class="status-badge">✓ Ready</span>
+           <span class="status-badge">Ready</span>
          </div>`
       : `<button class="row" id="setupOllama">
            <span class="row-label">Setup Ollama</span>

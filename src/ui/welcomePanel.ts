@@ -136,7 +136,7 @@ export class WelcomePanel {
     return this.buildContextDescription(state);
   }
 
-  private renderHtml(state: EditorContext, contextDesc: string, isllm: boolean): string {
+  private renderHtml(state: EditorContext, contextDesc: string, isLLM: boolean): string {
     const llmEnabled = vscode.workspace
       .getConfiguration('focusshift')
       .get<boolean>('enableLLMSummary', true);
@@ -155,7 +155,7 @@ export class WelcomePanel {
     const awayDuration = this.escapeHtml(this.formatDuration(state.awayDuration ?? 0));
     const snippet      = this.escapeHtml(state.snippet ?? '// No snippet captured');
     const desc         = this.renderDesc(contextDesc);
-    const badge        = isllm
+    const badge        = isLLM
       ? `<span class="llm-badge">${svgSparkle} AI</span>`
       : llmEnabled
         ? `<span class="llm-badge heuristic">${svgZap} Quick</span>`
@@ -167,7 +167,7 @@ export class WelcomePanel {
     const setupMenuItem = ollamaReady
       ? `<div class="menu-item disabled">
            <span>Setup Ollama</span>
-           <span class="menu-status">✓ Ready</span>
+           <span class="menu-status">Ready</span>
          </div>`
       : `<button class="menu-item" id="menuSetupOllama">
            <span>Setup Ollama</span>
@@ -467,7 +467,7 @@ export class WelcomePanel {
             ${setupMenuItem}
           </div>
         </div>
-        <button class="btn-icon" id="btnClose" title="Dismiss">✕</button>
+        <button class="btn-icon" id="btnClose" title="Dismiss">&times;</button>
       </div>
     </div>
 

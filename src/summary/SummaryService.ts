@@ -204,7 +204,7 @@ export class SummaryService {
     } catch (err: any) {
       if (err?.name === "AbortError") {
         console.warn(
-          "FocusShift SummaryService: Ollama request timed out after 15 s",
+          "FocusShift SummaryService: Ollama request timed out after 2 minutes",
         );
       } else {
         console.warn(
@@ -218,4 +218,3 @@ export class SummaryService {
     }
   }
 }
-1;

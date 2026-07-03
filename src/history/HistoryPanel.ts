@@ -79,7 +79,7 @@ export class HistoryPanel {
                   <span class="file">${this.escapeHtml(e.fileName)}</span>
                   <span class="line">Line ${e.line}</span>
                   <span class="date">${this.escapeHtml(date)}</span>
-                  <button class="danger" onclick="event.stopPropagation(); deleteEntry('${e.id}')">🗑 Delete</button>
+                  <button class="danger" onclick="event.stopPropagation(); deleteEntry('${e.id}')">Delete</button>
                 </div>
               </div>
               <div class="entry-body" id="body-${e.id}">
@@ -159,8 +159,8 @@ export class HistoryPanel {
   </style>
 </head>
 <body>
-  <h1>📋 FocusShift History</h1>
-  ${entries.length > 0 ? `<button class="clear-all danger" onclick="clearAll()">🗑 Clear All</button>` : ''}
+  <h1>FocusShift History</h1>
+  ${entries.length > 0 ? `<button class="clear-all danger" onclick="clearAll()">Clear All</button>` : ''}
   ${rows}
   <script>
     const vscode = acquireVsCodeApi();

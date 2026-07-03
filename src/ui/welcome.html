@@ -97,7 +97,7 @@
       opacity: 0.75;
     }
 
-    /* ✕ close button */
+    /* Close button */
     .btn-close {
       background: none;
       border: none;
@@ -138,11 +138,6 @@
       background: var(--vscode-editor-background, #1e1e1e);
       border-radius: 5px;
       border-left: 3px solid var(--vscode-focusBorder, #007fd4);
-    }
-
-    .context-icon {
-      font-size: 15px;
-      flex-shrink: 0;
     }
 
     .context-info {
@@ -238,7 +233,7 @@
         <div class="status-dot"></div>
         <span class="header-title">Welcome back</span>
       </div>
-      <button class="btn-close" id="btnClose" title="Dismiss">✕</button>
+      <button class="btn-close" id="btnClose" title="Dismiss">&times;</button>
     </div>
 
     <!-- Body -->
@@ -248,7 +243,6 @@
 
       <!-- File / function context block -->
       <div class="context-line">
-        <span class="context-icon">⚡</span>
         <div class="context-info">
           <!-- These placeholders are replaced by welcomePanel.ts before injecting the HTML -->
           <span class="context-function" id="fnName">{{FUNCTION_NAME}}</span>
@@ -258,7 +252,7 @@
 
       <!-- How long they were away -->
       <div class="away-badge">
-        🕐 Away for <span id="awayDuration">{{AWAY_DURATION}}</span>
+        Away for <span id="awayDuration">{{AWAY_DURATION}}</span>
       </div>
 
       <!-- Buttons -->

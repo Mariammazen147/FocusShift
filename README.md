@@ -58,7 +58,7 @@ npm test
 
 This compiles the TypeScript first (via the pretest hook), then runs all Jest suites.
 
-Test suites (8 total, 59 tests):
+Test suites (7 total, 53 tests):
   historyService.test.ts    — add, delete, clearAll, 50-entry cap
   summaryService.test.ts    — Ollama reachable / unreachable / empty response
   heuristic.test.ts         — function/class/method detection, verb selection
@@ -66,7 +66,6 @@ Test suites (8 total, 59 tests):
   historyPanel.test.ts      — singleton, webview messages (delete / clearAll)
   chimePlayer.test.ts       — playChimeIfEnabled, toggle, disabled path
   renderSummary.test.ts     — HTML rendering, markdown stripping, escaping
-  ollamaSetup.test.ts       — isOllamaInstalled, isModelAvailable, checkAndSetup
 
 To run a single suite:
   npx jest src/test/historyService.test.ts
@@ -135,10 +134,11 @@ src/
     heuristic.ts     → regex-based fallback summary (class, method, function, variable detection)
     renderSummary.ts → converts summary markdown to safe HTML for webviews
   setup/
-    OllamaSetup.ts   → static helpers for checking/installing Ollama and pulling the model
+    ollamastatus.ts  → cached checks for whether Ollama + the model are installed
   ui/
     welcomePanel.ts  → the "Welcome back" webview popup
     popupManager.ts  → triggers the popup on window focus if a saved state exists
+    Sidebarprovider.ts → sidebar view for Settings / History / Setup Ollama
   test/
     __mocks__/
       vscode.ts      → VS Code API mock for Jest (required to run outside the extension host)
@@ -149,7 +149,6 @@ src/
     historyPanel.test.ts
     chimePlayer.test.ts
     renderSummary.test.ts
-    ollamaSetup.test.ts
 
 media/
   chime.wav          → audio file played on return (WAV format required)
