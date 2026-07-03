@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { SummaryService } from '../summary/SummaryService';
 import { getHeuristicSummary } from '../summary/heuristic';
 import { HistoryService } from '../history/HistoryService';
@@ -162,13 +160,12 @@ export class StateManager {
     };
 
     console.log('FocusShift [test]: edits:', ctx.editHistory.length, 'cursors:', ctx.cursorHistory.length);
-    vscode.window.showInformationMessage('FocusShift: Asking Ollama, check the summary file in ~5s...');
+    vscode.window.showInformationMessage('FocusShift: Asking Ollama for a summary...');
 
     const summary = await this.summaryService.generateLLMSummary(ctx);
     console.log('FocusShift [test] LLM result:', summary ?? 'undefined');
 
     if (summary) {
-      this.writeSummaryFile(ctx, summary);
       vscode.window.showInformationMessage(`FocusShift: ${summary}`);
     } else {
       vscode.window.showWarningMessage('FocusShift: Ollama returned nothing — check the Debug Console for details.');
@@ -221,7 +218,6 @@ export class StateManager {
     });
 
     console.log(`FocusShift: Workspace state restored after ${awayDuration} seconds away`);
-    this.writeLog(state);
 
     // Use the active editor's context for the LLM summary
     const activeCtx = state.editors.find(e => e.fileUri === state.activeEditorUri) ?? state.editors[0];
@@ -234,9 +230,6 @@ export class StateManager {
         console.log('FocusShift: edits:', activeCtx.editHistory.length, 'cursors:', activeCtx.cursorHistory.length, 'scrolls:', activeCtx.scrollHistory.length);
         summary = await this.summaryService.generateLLMSummary(activeCtx);
         console.log('FocusShift: LLM summary result:', summary ?? 'undefined (Ollama unreachable or returned nothing)');
-        if (summary) {
-          this.writeSummaryFile(activeCtx, summary);
-        }
       } else {
         console.log('FocusShift: enableLLMSummary disabled — skipping LLM summary, using heuristic only.');
       }
@@ -263,76 +256,6 @@ export class StateManager {
     }
   }
 
-  // --- Save histories to a JSON log file (per day) ---
-  private writeLog(state: WorkspaceContext) {
-    try {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (!workspaceFolders || workspaceFolders.length === 0) {
-        console.error("FocusShift: No workspace folder open. Cannot save log.");
-        return;
-      }
-
-      const dateStr = new Date().toISOString().split('T')[0];
-      const logFileName = `focusshift-${dateStr}.json`;
-      const logPath = path.join(workspaceFolders[0].uri.fsPath, logFileName);
-
-      console.log("FocusShift: Attempting to save log at:", logPath);
-
-      const logEntry = {
-        timestamp: new Date().toLocaleString(),
-        activeEditor: state.activeEditorUri,
-        awayDuration: state.editors[0]?.awayDuration || 0,
-        editors: state.editors.map(editor => ({
-          file: editor.fileUri,
-          position: editor.position,
-          snippet: editor.snippet,
-          edits: editor.editHistory,
-          cursorMoves: editor.cursorHistory,
-          scrolls: editor.scrollHistory,
-          tabSwitches: editor.tabHistory
-        }))
-      };
-
-      let existing: any[] = [];
-      if (fs.existsSync(logPath)) {
-        try {
-          existing = JSON.parse(fs.readFileSync(logPath, 'utf8'));
-        } catch (err) {
-          console.error("FocusShift: Failed to parse existing log file:", err);
-          existing = [];
-        }
-      }
-      existing.push(logEntry);
-
-      fs.writeFileSync(logPath, JSON.stringify(existing, null, 2), 'utf8');
-      console.log(`FocusShift: JSON log saved to ${logPath}`);
-    } catch (err) {
-      console.error("FocusShift: Failed to write log:", err);
-    }
-  }
-
-  // --- Write LLM summary to a text file ---
-  private writeSummaryFile(state: EditorContext, summary: string) {
-    try {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (!workspaceFolders || workspaceFolders.length === 0) { return; }
-
-      const dateStr = new Date().toISOString().split('T')[0];
-      const summaryPath = path.join(workspaceFolders[0].uri.fsPath, `focusshift-summary-${dateStr}.txt`);
-
-      const entry =
-        `[${new Date().toLocaleString()}]\n` +
-        `File: ${state.fileUri}\n` +
-        `Away: ${state.awayDuration ?? 0}s\n` +
-        `Summary: ${summary}\n` +
-        `${'─'.repeat(60)}\n`;
-
-      fs.appendFileSync(summaryPath, entry, 'utf8');
-      console.log(`FocusShift: LLM summary saved to ${summaryPath}`);
-    } catch (err) {
-      console.error('FocusShift: Failed to write summary file:', err);
-    }
-  }
 
   // --- Helper: extract nearest enclosing function/method/arrow ---
   private extractEnclosingBlock(doc: vscode.TextDocument, pos: vscode.Position): string {
