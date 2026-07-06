@@ -32,20 +32,30 @@ export function activateDetection(context: vscode.ExtensionContext, historyServi
   // Inactivity detection: capture state if the user stops interacting
   // with the editor for `threshold` seconds without necessarily switching windows.
   let inactivityTimer: NodeJS.Timeout | null = null;
-  const threshold = vscode.workspace.getConfiguration('focusshift')
-    .get<number>('inactivityThresholdSeconds', 300);
+
+  function getThresholdMs(): number {
+    const minutes = vscode.workspace.getConfiguration('focusshift')
+      .get<number>('inactivityMinutes', 5);
+    return minutes * 60 * 1000;
+  }
 
   function resetTimer() {
     if (inactivityTimer) { clearTimeout(inactivityTimer); }
     inactivityTimer = setTimeout(() => {
       stateManager.captureState();
-    }, threshold * 1000);
+    }, getThresholdMs());
   }
 
   vscode.workspace.onDidChangeTextDocument(resetTimer);
   vscode.window.onDidChangeTextEditorSelection(resetTimer);
   vscode.window.onDidChangeTextEditorVisibleRanges(resetTimer);
   vscode.window.onDidChangeActiveTextEditor(resetTimer);
+
+  vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration('focusshift.inactivityMinutes')) {
+      resetTimer();
+    }
+  });
 
   resetTimer();
 

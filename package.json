@@ -51,11 +51,6 @@
           "default": true,
           "description": "Use AI (Ollama) to generate context summaries. Disable to use heuristic summaries only."
         },
-        "focusshift.useCustomLLM": {
-          "type": "boolean",
-          "default": true,
-          "description": "Use our custom-trained LLM for summaries"
-        },
         "focusshift.minAwaySeconds": {
           "type": "number",
           "default": 30,
