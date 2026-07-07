@@ -5,6 +5,7 @@ import { playChimeIfEnabled } from '../audio/chimePlayer';
 import { SummaryService } from '../summary/SummaryService';
 import { getHeuristicSummary } from '../summary/heuristic';
 import { getOllamaStatus } from '../setup/ollamastatus';
+import { renderSummaryHtml } from '../summary/renderSummary';
 
 /**
  * Manages the lifecycle of the FocusShift welcome-back webview panel.
@@ -154,7 +155,7 @@ export class WelcomePanel {
     const fileDisplay  = this.escapeHtml(rawFile + '  Ln ' + lineNumber + ', Col ' + col);
     const awayDuration = this.escapeHtml(this.formatDuration(state.awayDuration ?? 0));
     const snippet      = this.escapeHtml(state.snippet ?? '// No snippet captured');
-    const desc         = this.renderDesc(contextDesc);
+    const desc         = renderSummaryHtml(contextDesc);
     const badge        = isLLM
       ? `<span class="llm-badge">${svgSparkle} AI</span>`
       : llmEnabled
@@ -409,6 +410,12 @@ export class WelcomePanel {
       margin-bottom: 12px;
     }
 
+    .context-desc p  { margin: 0 0 6px 0; }
+    .context-desc p:last-child { margin-bottom: 0; }
+    .context-desc ul { margin: 0 0 8px 16px; padding: 0; }
+    .context-desc ul:last-child { margin-bottom: 0; }
+    .context-desc li { margin-bottom: 3px; }
+
     .context-desc strong {
       color: #e2e8f0;
       font-weight: 600;
@@ -497,7 +504,7 @@ export class WelcomePanel {
         <div class="context-title">
           ${svgBulb} Context Analysis ${badge}
         </div>
-        <p class="context-desc">${desc}</p>
+        <div class="context-desc">${desc}</div>
         <div class="code-block"><span class="code-comment">// Your last position:</span>
 <span class="code-text">${snippet}</span></div>
       </div>
