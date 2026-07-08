@@ -153,9 +153,6 @@ src/
 media/
   chime.wav          → audio file played on return (WAV format required)
 
-docs/
-  codebase-overview.md → full class/function reference for UML diagram generation
-
 ---
 
 NOTES
