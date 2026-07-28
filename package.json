@@ -2,7 +2,7 @@
   "name": "focusshift",
   "displayName": "FocusShift",
   "description": "Never lose your coding context — auto chime + smart summary on return",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "focusshift",
   "repository": {
     "type": "git",
