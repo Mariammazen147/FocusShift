@@ -5,8 +5,7 @@ import { playChimeIfEnabled } from '../audio/chimePlayer';
 import { SummaryService } from '../summary/SummaryService';
 import { getHeuristicSummary } from '../summary/heuristic';
 import { getOllamaStatus } from '../setup/ollamastatus';
-import { renderSummaryHtml } from '../summary/renderSummary';
-
+import { renderSummaryHtml, escapeHtml } from '../summary/renderSummary';
 /**
  * Manages the lifecycle of the FocusShift welcome-back webview panel.
  * Only one panel is shown at a time.
@@ -152,9 +151,9 @@ export class WelcomePanel {
     const rawFile      = state.fileUri ? path.basename(decodeURIComponent(vscode.Uri.parse(state.fileUri).fsPath)) : 'unknown file';
     const col          = (state.position?.character ?? 0) + 1;
     const lineNumber   = (state.position?.line ?? 0) + 1;
-    const fileDisplay  = this.escapeHtml(rawFile + '  Ln ' + lineNumber + ', Col ' + col);
-    const awayDuration = this.escapeHtml(this.formatDuration(state.awayDuration ?? 0));
-    const snippet      = this.escapeHtml(state.snippet ?? '// No snippet captured');
+    const fileDisplay  = escapeHtml(rawFile + '  Ln ' + lineNumber + ', Col ' + col);
+    const awayDuration = escapeHtml(this.formatDuration(state.awayDuration ?? 0));
+    const snippet      = escapeHtml(state.snippet ?? '// No snippet captured');
     const desc         = renderSummaryHtml(contextDesc);
     const badge        = isLLM
       ? `<span class="llm-badge">${svgSparkle} AI</span>`
@@ -568,9 +567,8 @@ export class WelcomePanel {
    * Handles: **bold**, newlines → <br>, and escapes everything else.
    */
   private renderDesc(text: string): string {
-    return this.escapeHtml(text)
+    return escapeHtml(text)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // collapse double newlines (after headers) into a single <br>
       .replace(/\n{2,}/g, '<br>')
       .replace(/\n/g, '<br>');
   }
@@ -597,15 +595,6 @@ export class WelcomePanel {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return s > 0 ? (m + ' min ' + s + ' sec') : (m + ' min');
-  }
-
-  private escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 
   private dispose(): void {

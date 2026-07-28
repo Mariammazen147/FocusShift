@@ -7,7 +7,7 @@ import { activateHeuristic } from "./summary/heuristic";
 import { HistoryService } from "./history/HistoryService";
 import { HistoryPanel } from "./history/HistoryPanel";
 import { SidebarProvider } from "./ui/Sidebarprovider";
-import { isOllamaInstalled } from "./setup/ollamastatus";
+import { isOllamaInstalled, getOllamaStatus } from "./setup/ollamastatus";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("FocusShift is now active!");
@@ -60,13 +60,28 @@ export function activate(context: vscode.ExtensionContext) {
       });
     },
   );
+
   // First-run nudge: point new users at Ollama setup once, then never again.
+  // Also auto-detects whether Ollama is already present and adjusts the
+  // enableLLMSummary default accordingly, so a fresh install never pays the
+  // cost of a failed Ollama call before the user has had a chance to set it up.
   const hasSeenOllamaPrompt = context.globalState.get<boolean>(
     "focusshift.hasSeenOllamaPrompt",
     false,
   );
 
   if (!hasSeenOllamaPrompt) {
+    const status = getOllamaStatus(true);
+    const config = vscode.workspace.getConfiguration("focusshift");
+
+    // If Ollama + the model aren't ready yet, turn AI summaries off for now —
+    // package.json's declared default stays `true` for anyone who already has
+    // Ollama running, but first-run users without it get a clean, fast,
+    // heuristic-only experience until they opt in via Setup Ollama.
+    if (!status.installed || !status.modelReady) {
+      config.update("enableLLMSummary", false, vscode.ConfigurationTarget.Global);
+    }
+
     vscode.window
       .showInformationMessage(
         "FocusShift is active! For AI-powered summaries, install Ollama. Click to learn more.",
@@ -81,6 +96,7 @@ export function activate(context: vscode.ExtensionContext) {
         context.globalState.update("focusshift.hasSeenOllamaPrompt", true);
       });
   }
+
   const setupOllama = vscode.commands.registerCommand("focusshift.setupOllama", async () => {
     const platform = process.platform;
 
@@ -105,6 +121,26 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
           "Downloading AI model (~1GB). Keep the terminal open until it finishes."
         );
+
+        // Verify the pull actually finished once the user closes this terminal.
+        const closeListener = vscode.window.onDidCloseTerminal(closedTerminal => {
+          if (closedTerminal !== terminal) { return; }
+          closeListener.dispose();
+
+          const status = getOllamaStatus(true); // force a fresh check, bypass the 30s cache
+          if (status.installed && status.modelReady) {
+            vscode.window.showInformationMessage("FocusShift: Ollama setup complete — AI summaries are ready!");
+            // Setup succeeded — turn AI summaries back on automatically.
+            vscode.workspace.getConfiguration("focusshift")
+              .update("enableLLMSummary", true, vscode.ConfigurationTarget.Global);
+          } else {
+            vscode.window.showWarningMessage(
+              'FocusShift: Ollama setup may not have finished. Run "FocusShift: Setup Ollama" again if AI summaries aren\'t working.'
+            );
+          }
+        });
+        context.subscriptions.push(closeListener);
+
       } else {
         vscode.env.openExternal(
           vscode.Uri.parse("https://ollama.com/download/windows")
@@ -112,6 +148,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
           'Download and run the Ollama installer for Windows. Once installed, run "FocusShift: Setup Ollama" again to pull the AI model automatically.'
         );
+        // No terminal was created in this branch (just opens a browser page),
+        // so there's nothing to attach a close-listener to here.
       }
       return;
     }
@@ -134,6 +172,24 @@ export function activate(context: vscode.ExtensionContext) {
         'Downloading AI model (~1GB). Keep the terminal open until it finishes.'
       );
     }
+
+    // Verify setup actually succeeded once the user closes this terminal.
+    const closeListener = vscode.window.onDidCloseTerminal(closedTerminal => {
+      if (closedTerminal !== terminal) { return; }
+      closeListener.dispose();
+
+      const status = getOllamaStatus(true);
+      if (status.installed && status.modelReady) {
+        vscode.window.showInformationMessage("FocusShift: Ollama setup complete — AI summaries are ready!");
+        vscode.workspace.getConfiguration("focusshift")
+          .update("enableLLMSummary", true, vscode.ConfigurationTarget.Global);
+      } else {
+        vscode.window.showWarningMessage(
+          'FocusShift: Ollama setup may not have finished. Run "FocusShift: Setup Ollama" again if AI summaries aren\'t working.'
+        );
+      }
+    });
+    context.subscriptions.push(closeListener);
   });
 
   const captureStateCmd = vscode.commands.registerCommand('focusshift.capture', () => {

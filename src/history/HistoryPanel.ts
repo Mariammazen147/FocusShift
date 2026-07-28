@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import { HistoryService } from './HistoryService';
 import { HistoryEntry } from './HistoryEntry';
-import { renderSummaryHtml, stripSummaryMarkdown } from '../summary/renderSummary';
-
+import { renderSummaryHtml, stripSummaryMarkdown, escapeHtml } from '../summary/renderSummary';
 /**
  * Lean shape sent to the webview for rendering + client-side search/filter.
  * fileName/dateStr/title/summaryHtml are pre-escaped/rendered on the extension
@@ -84,12 +83,12 @@ export class HistoryPanel {
     const date = new Date(e.timestamp).toLocaleString();
     const summary = e.llmSummary ?? e.heuristicSummary;
     const title = this.buildTitle(summary);
-    return {
+return {
       id: e.id,
-      fileName: this.escapeHtml(e.fileName),
+      fileName: escapeHtml(e.fileName),
       line: e.line,
-      dateStr: this.escapeHtml(date),
-      title: this.escapeHtml(title),
+      dateStr: escapeHtml(date),
+      title: escapeHtml(title),
       summaryHtml: renderSummaryHtml(summary),
       searchText: `${e.fileName} ${summary}`.toLowerCase()
     };
@@ -282,14 +281,5 @@ export class HistoryPanel {
     const oneLine = stripSummaryMarkdown(summary);
     const maxLen = 80;
     return oneLine.length > maxLen ? oneLine.slice(0, maxLen).trimEnd() + '…' : oneLine;
-  }
-
-  private escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 }

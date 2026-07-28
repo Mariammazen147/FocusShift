@@ -187,24 +187,37 @@ export class StateManager {
       console.error("FocusShift: Failed to parse saved state:", err);
       return;
     }
+    
+    // Most editors are still open — VS Code never closes anything during a
+    // blur/inactivity interruption. Only reopen an editor if it's no longer
+    // among the currently visible ones (e.g. it was closed, or the file was
+    // moved/deleted while the developer was away).
+    const openUris = new Set(vscode.window.visibleTextEditors.map(e => e.document.uri.toString()));
 
-    let activeDoc: vscode.TextDocument | undefined;
-    try {
-      // Open all editors that were open
-      for (const editorContext of state.editors) {
+    for (const editorContext of state.editors) {
+      if (openUris.has(editorContext.fileUri)) {
+        continue; // still open — nothing to restore for this one
+      }
+      try {
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(editorContext.fileUri));
         const editor = await vscode.window.showTextDocument(doc, { preview: false });
         editor.selection = new vscode.Selection(editorContext.position, editorContext.position);
+      } catch (err) {
+        // One missing/moved/deleted file shouldn't stop the rest of the restore.
+        console.warn(`FocusShift: Could not reopen ${editorContext.fileUri}:`, err);
       }
+    }
 
-      // Make the previously active editor active again
-      if (state.activeEditorUri) {
+    // Bring the previously active editor back into focus. showTextDocument on
+    // an already-open document just reveals/focuses it — cheap and safe.
+    let activeDoc: vscode.TextDocument | undefined;
+    if (state.activeEditorUri) {
+      try {
         activeDoc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.activeEditorUri));
         await vscode.window.showTextDocument(activeDoc);
+      } catch (err) {
+        console.warn("FocusShift: Could not focus the previously active editor:", err);
       }
-    } catch (err) {
-      console.error("FocusShift: Failed to restore workspace state:", err);
-      return;
     }
 
     await this.storage.update('focusshift.lastState', undefined);

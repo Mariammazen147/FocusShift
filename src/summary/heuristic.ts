@@ -77,11 +77,13 @@ export function getHeuristicSummary(
     return m ? m[1] : null;
   }
 
-  function matchMethod(line: string): string | null {
+function matchMethod(line: string): string | null {
     const cleaned = line
       .replace(/\b(public|private|protected|static|async|abstract|override|readonly)\b/g, '')
       .trim();
-    const m = cleaned.match(/^(\w+)\s*\([^)]*\)[^{]*\{?/);
+    // Optionally skip a leading return type (e.g. "int", "Map<String,Integer>", "void")
+    // before capturing the actual method name.
+    const m = cleaned.match(/^(?:[\w<>\[\],.]+\s+)?(\w+)\s*\([^)]*\)[^{]*\{?/);
     if (m && !['if', 'for', 'while', 'switch', 'catch'].includes(m[1])) {
       return m[1];
     }
