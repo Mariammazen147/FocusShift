@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 
 // The exact model FocusShift depends on for AI summaries.
-const MODEL_NAME = 'qwen2.5-coder:1.5b-instruct';
+export const MODEL_NAME = 'qwen2.5-coder:1.5b-instruct';
 
 /** Is the `ollama` CLI installed and on PATH at all? */
 export function isOllamaInstalled(): boolean {

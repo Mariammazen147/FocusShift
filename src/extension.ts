@@ -7,7 +7,7 @@ import { activateHeuristic } from "./summary/heuristic";
 import { HistoryService } from "./history/HistoryService";
 import { HistoryPanel } from "./history/HistoryPanel";
 import { SidebarProvider } from "./ui/Sidebarprovider";
-import { isOllamaInstalled, getOllamaStatus } from "./setup/ollamastatus";
+import { isOllamaInstalled, getOllamaStatus, MODEL_NAME } from "./setup/ollamastatus";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("FocusShift is now active!");
@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Step 1 — tell the user what's about to happen before we touch anything
     const choice = await vscode.window.showInformationMessage(
-      "FocusShift will open a terminal and install Ollama + the required AI model (qwen2.5-coder:1.5b-instruct). This may take a few minutes depending on your internet speed.",
+      `FocusShift will open a terminal and install Ollama + the required AI model (${MODEL_NAME}). This may take a few minutes depending on your internet speed.`,
       "Continue",
       "Cancel",
     );
@@ -117,7 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (isOllamaInstalled()) {
         const terminal = vscode.window.createTerminal("FocusShift Setup");
         terminal.show();
-        terminal.sendText("ollama pull qwen2.5-coder:1.5b-instruct");
+        terminal.sendText(`ollama pull ${MODEL_NAME}`);
         vscode.window.showInformationMessage(
           "Downloading AI model (~1GB). Keep the terminal open until it finishes."
         );
@@ -161,13 +161,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (!isOllamaInstalled()) {
       terminal.sendText(
-        'curl -fsSL https://ollama.com/install.sh | sh && ollama pull qwen2.5-coder:1.5b-instruct'
+        `curl -fsSL https://ollama.com/install.sh | sh && ollama pull ${MODEL_NAME}`
       );
       vscode.window.showInformationMessage(
         'Installing Ollama and downloading AI model (~1GB). Keep the terminal open until it finishes.'
       );
     } else {
-      terminal.sendText('ollama pull qwen2.5-coder:1.5b-instruct');
+      terminal.sendText(`ollama pull ${MODEL_NAME}`);
       vscode.window.showInformationMessage(
         'Downloading AI model (~1GB). Keep the terminal open until it finishes.'
       );

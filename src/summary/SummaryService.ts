@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { EditorContext } from "../core/stateManager";
+import { MODEL_NAME } from '../setup/ollamastatus';
+
 
 type Scenario =
   | "development"
@@ -157,7 +159,7 @@ export class SummaryService {
       return undefined;
     }
 
-    const model = config.get<string>("llmModel", "qwen2.5-coder:1.5b-instruct");
+    const model = MODEL_NAME;
 
     const scenario: Scenario = this.inferScenario(ctx);
 
