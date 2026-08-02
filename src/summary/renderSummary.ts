@@ -50,3 +50,17 @@ export function stripSummaryMarkdown(text: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+export function formatDuration(seconds: number): string {
+  if (seconds <= 0) { return 'a moment'; }
+  if (seconds < 60) { return 'under a minute'; }
+
+  const totalMinutes = Math.floor(seconds / 60);
+  if (totalMinutes < 60) {
+    return totalMinutes + ' min';
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? (hours + 'h ' + minutes + 'm') : (hours + 'h');
+}

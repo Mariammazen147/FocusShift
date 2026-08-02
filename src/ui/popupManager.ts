@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { WelcomePanel } from './welcomePanel';
 import { EditorContext } from '../core/stateManager';
+import { playChimeIfEnabled } from '../audio/chimePlayer';
+import { formatDuration } from '../summary/renderSummary';
 
 /**
  * Registers the window-focus listener that triggers the welcome popup.
@@ -20,7 +23,8 @@ export function activatePopup(context: vscode.ExtensionContext): void {
 
 /**
  * Reads the last saved WorkspaceContext from globalState, extracts the
- * active EditorContext, and passes it to WelcomePanel.
+ * active EditorContext, and shows a lightweight toast notification with
+ * quick actions — rather than immediately opening the full detail panel.
  */
 function showPopupIfStateExists(context: vscode.ExtensionContext): void {
   const raw = context.globalState.get<string>('focusshift.lastState');
@@ -33,15 +37,12 @@ function showPopupIfStateExists(context: vscode.ExtensionContext): void {
   try {
     const parsed = JSON.parse(raw);
 
-    // StateManager now saves a WorkspaceContext { editors[], activeEditorUri }
-    // Extract the active editor's context, falling back to the first one
     let editorCtx: any;
     if (parsed.editors && Array.isArray(parsed.editors)) {
       editorCtx = parsed.editors.find(
         (e: any) => e.fileUri === parsed.activeEditorUri
       ) ?? parsed.editors[0];
     } else {
-      // Legacy flat format — use as-is
       editorCtx = parsed;
     }
 
@@ -50,14 +51,12 @@ function showPopupIfStateExists(context: vscode.ExtensionContext): void {
       return;
     }
 
-    // vscode.Position doesn't survive JSON round-trip — reconstruct it
     const now = Date.now();
     const capturedAt = editorCtx.timestamp ?? parsed.timestamp ?? 0;
     const awaySeconds = capturedAt ? Math.floor((now - capturedAt) / 1000) : 0;
 
-    // Skip a quick alt-tab — only show the popup after a real interruption.
-    const minAwaySeconds = vscode.workspace.getConfiguration('focusshift').get<number>('minAwaySeconds', 30);
-    if (awaySeconds < minAwaySeconds) {
+    const minAwayMinutes = vscode.workspace.getConfiguration('focusshift').get<number>('minAwayMinutes', 0.5);
+    if (awaySeconds < minAwayMinutes * 60) {
       return;
     }
 
@@ -74,8 +73,44 @@ function showPopupIfStateExists(context: vscode.ExtensionContext): void {
     return;
   }
 
-  // Small delay so VS Code finishes re-focusing before the panel appears
   setTimeout(() => {
-    WelcomePanel.show(context, state);
+    showToast(context, state);
   }, 400);
+}
+
+/** Shows a lightweight native notification instead of immediately opening the full panel. */
+function showToast(context: vscode.ExtensionContext, state: EditorContext): void {
+  playChimeIfEnabled();
+
+  const fileName = state.fileUri
+    ? path.basename(decodeURIComponent(vscode.Uri.parse(state.fileUri).fsPath))
+    : 'unknown file';
+  const away = formatDuration(state.awayDuration ?? 0);
+
+  vscode.window
+    .showInformationMessage(
+      `Welcome back — away ${away}. ${fileName}`,
+      'Show Context',
+      'Jump to Code'
+    )
+    .then(choice => {
+      if (choice === 'Show Context') {
+        WelcomePanel.show(context, state);
+      } else if (choice === 'Jump to Code') {
+        jumpToCode(state);
+      }
+      // No choice (dismissed / timed out) — do nothing, matches a quick dismiss.
+    });
+}
+
+/** Focuses the file and cursor position directly, without depending on saved state still existing. */
+async function jumpToCode(state: EditorContext): Promise<void> {
+  try {
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.fileUri));
+    const editor = await vscode.window.showTextDocument(doc, { preview: false });
+    editor.selection = new vscode.Selection(state.position, state.position);
+    editor.revealRange(new vscode.Range(state.position, state.position));
+  } catch (err) {
+    console.warn('FocusShift: Could not jump to code:', err);
+  }
 }

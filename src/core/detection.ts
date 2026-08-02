@@ -7,7 +7,7 @@ export function activateDetection(context: vscode.ExtensionContext, historyServi
   const stateManager = new StateManager(context.globalState, historyService);
 
   // Only show the "welcome back" popup if the user was away for at least
-  // minAwaySeconds — a quick alt-tab shouldn't trigger it.
+  // minAwayMinutes — a quick alt-tab shouldn't trigger it.
   let blurTime: number | null = null;
 
   vscode.window.onDidChangeWindowState(state => {
@@ -19,10 +19,10 @@ export function activateDetection(context: vscode.ExtensionContext, historyServi
       }
 
       const awayMs = blurTime ? Date.now() - blurTime : 0;
-      const minAwaySeconds = vscode.workspace.getConfiguration('focusshift')
-        .get<number>('minAwaySeconds', 30);
+      const minAwayMinutes = vscode.workspace.getConfiguration('focusshift')
+        .get<number>('minAwayMinutes', 1);
 
-      if (awayMs >= minAwaySeconds * 1000) {
+      if (awayMs >= minAwayMinutes * 60 * 1000) {
         stateManager.restoreState();
       } else {
         console.log(`FocusShift: away only ${Math.floor(awayMs / 1000)}s - skipping popup`);

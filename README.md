@@ -38,7 +38,7 @@ FocusShift doesn't try to prevent interruptions. It makes coming back from one i
 
 1. FocusShift watches for two signals: the VS Code window losing focus, or a period of inactivity (no edits, cursor moves, scrolls, or tab switches) past a threshold you control.
 2. The moment either fires, it snapshots your open editors — cursor position, a code excerpt around it, and any active errors/warnings.
-3. When you return, it generates a summary of what you were doing (instantly via the heuristic engine, upgraded a moment later by the local AI model if you've set it up) and shows it in a small, dismissible popup — along with a chime, if enabled.
+3. When you return, a chime plays (if enabled) and a quick notification appears with the away time and file — click **Show Context** for the full summary and code snippet (generated instantly via the heuristic engine, upgraded a moment later by the local AI model if you've set it up), or **Jump to Code** to go straight back to where you were.
 4. Every interruption is logged to a searchable history panel, so you can look back at what you were doing an hour — or a week — ago.
 
 ## Requirements
@@ -93,7 +93,7 @@ Accessible via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | `focusshift.inactivityMinutes` | `5` | Minutes of inactivity before FocusShift saves your state |
 | `focusshift.chimeEnabled` | `true` | Enable or disable the audio chime on return |
 | `focusshift.enableLLMSummary` | `true`* | Use the local AI model for summaries (falls back to heuristic automatically if unavailable) |
-| `focusshift.minAwaySeconds` | `30` | Minimum time away before the welcome popup appears — filters out quick alt-tabs |
+| `focusshift.minAwayMinutes` | `0.5` | Minimum minutes away before the welcome popup appears — filters out quick alt-tabs |
 
 *\*On first install, FocusShift checks whether Ollama is already available and adjusts this automatically — you don't need to configure it manually either way.*
 

@@ -1,12 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { EditorContext } from '../core/stateManager';
-import { playChimeIfEnabled } from '../audio/chimePlayer';
 import { SummaryService } from '../summary/SummaryService';
 import { getHeuristicSummary } from '../summary/heuristic';
 import { getOllamaStatus } from '../setup/ollamastatus';
-import { renderSummaryHtml, escapeHtml } from '../summary/renderSummary';
-/**
+import { renderSummaryHtml, escapeHtml, formatDuration } from '../summary/renderSummary';/**
  * Manages the lifecycle of the FocusShift welcome-back webview panel.
  * Only one panel is shown at a time.
  */
@@ -29,20 +27,16 @@ export class WelcomePanel {
       WelcomePanel.current.panel.reveal(vscode.ViewColumn.Beside, true);
       return;
     }
-
-    const panel = vscode.window.createWebviewPanel(
+const panel = vscode.window.createWebviewPanel(
       'focusshiftWelcome',
       'FocusShift',
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
       { enableScripts: true, retainContextWhenHidden: false }
     );
 
-    // Play chime as the popup appears
-    playChimeIfEnabled();
-
     WelcomePanel.current = new WelcomePanel(panel, extensionContext, state);
-  }
 
+  }
   // ── Constructor ───────────────────────────────────────────────────────────
 
   private constructor(
@@ -152,7 +146,7 @@ export class WelcomePanel {
     const col          = (state.position?.character ?? 0) + 1;
     const lineNumber   = (state.position?.line ?? 0) + 1;
     const fileDisplay  = escapeHtml(rawFile + '  Ln ' + lineNumber + ', Col ' + col);
-    const awayDuration = escapeHtml(this.formatDuration(state.awayDuration ?? 0));
+    const awayDuration = escapeHtml(formatDuration(state.awayDuration ?? 0));
     const snippet      = escapeHtml(state.snippet ?? '// No snippet captured');
     const desc         = renderSummaryHtml(contextDesc);
     const badge        = isLLM
@@ -589,13 +583,6 @@ export class WelcomePanel {
     return 'You were editing on line ' + line + '. Pick up right where you left off.';
   }
 
-  private formatDuration(seconds: number): string {
-    if (seconds <= 0) { return 'a moment'; }
-    if (seconds < 60) { return seconds + ' sec'; }
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return s > 0 ? (m + ' min ' + s + ' sec') : (m + ' min');
-  }
 
   private dispose(): void {
     WelcomePanel.current = undefined;
