@@ -36,7 +36,7 @@ FocusShift doesn't try to prevent interruptions. It makes coming back from one i
 
 1. FocusShift watches for two signals: the VS Code window losing focus, or a period of inactivity (no edits, cursor moves, scrolls, or tab switches) past a threshold you control.
 2. The moment either fires, it snapshots your open editors — cursor position, a code excerpt around it, and any active errors/warnings.
-3. When you return, a chime plays (if enabled) and a quick notification appears with the away time and file — click **Show Context** for the full summary and code snippet (generated instantly via the heuristic engine, upgraded a moment later by the local AI model if you've set it up), or **Jump to Code** to go straight back to where you were.
+3. When you return, a chime plays (if enabled) and a small "Welcome Back" popup appears with a summary of what you were doing — instantly via the heuristic engine, upgraded a moment later by the local AI model if you've set it up. The popup dismisses itself automatically after a short delay if you don't interact with it.
 4. Every interruption is logged to a searchable history panel, so you can look back at what you were doing an hour — or a week — ago.
 
 ## Requirements
