@@ -90,3 +90,57 @@ describe('getHeuristicSummary', () => {
     expect(result).toContain('writing in');
   });
 });
+describe('getHeuristicSummary — typed-language method detection (matchMethod)', () => {
+  test('identifies a Java-style method with a primitive return type', () => {
+    const doc = mockDocument([
+      'class Calculator {',
+      '  public int calculate(int x) {',
+      '    return x * 2;',
+      '  }',
+      '}',
+    ], 'java');
+    const result = getHeuristicSummary(doc as any, mockPosition(2) as any);
+    expect(result).toContain('calculate');
+  });
+
+  test('identifies a method with a generic return type', () => {
+    const doc = mockDocument([
+      'class Repo {',
+      '  public Map<String,Integer> getCounts() {',
+      '    return counts;',
+      '  }',
+      '}',
+    ], 'java');
+    const result = getHeuristicSummary(doc as any, mockPosition(2) as any);
+    expect(result).toContain('getCounts');
+  });
+
+  test('does not misidentify control-flow keywords as method names', () => {
+    const doc = mockDocument([
+      'class Validator {',
+      '  boolean isValid(String input) {',
+      '    if (input == null) {',
+      '      return false;',
+      '    }',
+      '    return true;',
+      '  }',
+      '}',
+    ], 'java');
+    const result = getHeuristicSummary(doc as any, mockPosition(3) as any);
+    // Should find the enclosing method (isValid), not misfire on the nested `if`.
+    expect(result).toContain('isValid');
+    expect(result).not.toMatch(/\bif\b.*method|method.*\bif\b/);
+  });
+
+  test('still works for untyped JS/TS-style methods (no regression from the fix)', () => {
+    const doc = mockDocument([
+      'class AuthService {',
+      '  validateToken(token) {',
+      '    return token.length > 10;',
+      '  }',
+      '}',
+    ]);
+    const result = getHeuristicSummary(doc as any, mockPosition(2) as any);
+    expect(result).toContain('validateToken');
+  });
+});

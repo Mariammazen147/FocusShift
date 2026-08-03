@@ -43,7 +43,7 @@ FocusShift doesn't try to prevent interruptions. It makes coming back from one i
 
 - **VS Code** 1.95.0 or later.
 - **(Optional)** [Ollama](https://ollama.com) installed locally, for AI-generated summaries. Everything else works with zero setup — the heuristic engine requires no external dependency at all.
-
+5
 ## Installation
 
 **From the Marketplace:**
@@ -91,7 +91,7 @@ Accessible via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 | `focusshift.inactivityMinutes` | `5` | Minutes of inactivity before FocusShift saves your state |
 | `focusshift.chimeEnabled` | `true` | Enable or disable the audio chime on return |
 | `focusshift.enableLLMSummary` | `true`* | Use the local AI model for summaries (falls back to heuristic automatically if unavailable) |
-| `focusshift.minAwayMinutes` | `0.5` | Minimum minutes away before the welcome popup appears — filters out quick alt-tabs |
+| `focusshift.minAwayMinutes` | `1` | Minimum minutes away before the welcome popup appears — filters out quick alt-tabs |
 
 *\*On first install, FocusShift checks whether Ollama is already available and adjusts this automatically — you don't need to configure it manually either way.*
 

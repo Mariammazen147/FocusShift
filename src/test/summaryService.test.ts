@@ -69,4 +69,17 @@ describe('SummaryService', () => {
     const result = await service.generateLLMSummary(mockCtx as any);
     expect(result).toBeUndefined();
   });
+  test('sends the consolidated MODEL_NAME constant, not a separately hardcoded string', async () => {
+    const { MODEL_NAME } = require('../setup/ollamastatus');
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: { role: 'assistant', content: 'summary text' }, done: true }),
+    });
+
+    await service.generateLLMSummary(mockCtx as any);
+
+    const [, requestInit] = (global.fetch as jest.Mock).mock.calls[0];
+    const body = JSON.parse(requestInit.body);
+    expect(body.model).toBe(MODEL_NAME);
+  });
 });

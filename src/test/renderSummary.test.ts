@@ -1,4 +1,4 @@
-import { renderSummaryHtml, stripSummaryMarkdown, escapeHtml, formatInline } from '../summary/renderSummary';
+import { renderSummaryHtml, stripSummaryMarkdown, escapeHtml, formatInline, formatDuration } from '../summary/renderSummary';
 
 describe('renderSummaryHtml', () => {
   test('returns a non-empty HTML string', () => {
@@ -74,6 +74,34 @@ describe('escapeHtml', () => {
 
   test('returns empty string for empty input', () => {
     expect(escapeHtml('')).toBe('');
+  });
+});
+
+describe('formatDuration', () => {
+  test('returns "a moment" for zero or negative seconds', () => {
+    expect(formatDuration(0)).toBe('a moment');
+    expect(formatDuration(-5)).toBe('a moment');
+  });
+
+  test('returns "under a minute" for anything below 60 seconds', () => {
+    expect(formatDuration(1)).toBe('under a minute');
+    expect(formatDuration(59)).toBe('under a minute');
+  });
+
+  test('shows whole minutes for 1–59 minutes, no seconds granularity', () => {
+    expect(formatDuration(60)).toBe('1 min');
+    expect(formatDuration(90)).toBe('1 min'); // rounds down, doesn't show "1 min 30 sec"
+    expect(formatDuration(59 * 60 + 59)).toBe('59 min');
+  });
+
+  test('switches to hours+minutes at exactly 60 minutes, omitting minutes on exact hour multiples', () => {
+    expect(formatDuration(60 * 60)).toBe('1h');
+    expect(formatDuration(2 * 60 * 60)).toBe('2h');
+  });
+
+  test('shows hours and minutes together when not an exact hour', () => {
+    expect(formatDuration(65 * 60)).toBe('1h 5m');
+    expect(formatDuration(125 * 60)).toBe('2h 5m');
   });
 });
 

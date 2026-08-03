@@ -39,6 +39,21 @@ const mockContext = {
 };
 
 describe('HistoryPanel', () => {
+  // Regression test: an auto-close timer (meant only for WelcomePanel's
+  // transient popup) briefly leaked into this file's createOrShow, silently
+  // closing the Context History panel after 15s even mid-browse. It should
+  // never auto-close — the user opens it deliberately and browses it for as
+  // long as they want.
+  test('never auto-closes, even after 15+ seconds with no interaction', () => {
+    jest.useFakeTimers();
+    HistoryPanel.createOrShow(mockContext as any, mockHistoryService as any);
+
+    jest.advanceTimersByTime(20_000);
+
+    expect(mockPanel.dispose).not.toHaveBeenCalled();
+    jest.useRealTimers();
+  });
+  
   beforeEach(() => {
     jest.clearAllMocks();
     (HistoryPanel as any).currentPanel = undefined;

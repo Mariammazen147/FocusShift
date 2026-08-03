@@ -150,7 +150,7 @@ describe('activateDetection inactivity threshold', () => {
     expect(captureSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the popup restore path only after minAwaySeconds', () => {
+  it('shows the popup restore path only after minAwayMinutes', () => {
     const stateManager = activateDetection(context, mockHistoryService as any);
     const restoreSpy = jest.spyOn(stateManager, 'restoreState').mockImplementation(async () => {});
     const captureSpy = jest.spyOn(stateManager, 'captureState').mockImplementation(() => {});
@@ -160,8 +160,9 @@ describe('activateDetection inactivity threshold', () => {
     windowStateHandler!({ focused: false });
     expect(captureSpy).toHaveBeenCalledTimes(1);
 
-    jest.advanceTimersByTime(10 * 1000); // 10s away — below default 30s minAwaySeconds
+    jest.advanceTimersByTime(10 * 1000); // 10s away — below default 1 min (60s) minAwayMinutes    
     windowStateHandler!({ focused: true });
+
     expect(restoreSpy).not.toHaveBeenCalled();
   });
 });

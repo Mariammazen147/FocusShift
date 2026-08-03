@@ -39,10 +39,6 @@ export class HistoryPanel {
       vscode.ViewColumn.One,
       { enableScripts: true }
     );
-    const autoCloseTimer = setTimeout(() => {
-  panel.dispose();
-}, 15_000);
-panel.onDidDispose(() => clearTimeout(autoCloseTimer)); // cancel if closed manually first
 
     HistoryPanel.currentPanel = new HistoryPanel(panel, historyService);
     context.subscriptions.push(panel);

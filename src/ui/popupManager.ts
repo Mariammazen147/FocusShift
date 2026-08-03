@@ -51,7 +51,7 @@ function showPopupIfStateExists(context: vscode.ExtensionContext): void {
     const capturedAt = editorCtx.timestamp ?? parsed.timestamp ?? 0;
     const awaySeconds = capturedAt ? Math.floor((now - capturedAt) / 1000) : 0;
 
-    const minAwayMinutes = vscode.workspace.getConfiguration('focusshift').get<number>('minAwayMinutes', 0.5);
+    const minAwayMinutes = vscode.workspace.getConfiguration('focusshift').get<number>('minAwayMinutes', 1);
     if (awaySeconds < minAwayMinutes * 60) {
       return;
     }

@@ -72,4 +72,10 @@ describe('HistoryService', () => {
     service.clearAll();
     expect(service.getAll()).toEqual([]);
   });
+
+  test('getAll() returns an empty array instead of throwing when storage has corrupted JSON', () => {
+    store['focusshift.history'] = '{ this is not valid json';
+    expect(() => service.getAll()).not.toThrow();
+    expect(service.getAll()).toEqual([]);
+  });
 });
