@@ -4,7 +4,9 @@ import { EditorContext } from '../core/stateManager';
 import { SummaryService } from '../summary/SummaryService';
 import { getHeuristicSummary } from '../summary/heuristic';
 import { getOllamaStatus } from '../setup/ollamastatus';
-import { renderSummaryHtml, escapeHtml, formatDuration } from '../summary/renderSummary';/**
+import { renderSummaryHtml, escapeHtml, formatDuration } from '../summary/renderSummary';
+import { playChimeIfEnabled } from '../audio/chimePlayer';
+/**
  * Manages the lifecycle of the FocusShift welcome-back webview panel.
  * Only one panel is shown at a time.
  */
@@ -15,6 +17,7 @@ export class WelcomePanel {
   private readonly context: vscode.ExtensionContext;
   private readonly summaryService = new SummaryService();
   private disposables: vscode.Disposable[] = [];
+  private autoCloseTimer: NodeJS.Timeout | undefined;   
 
   // ── Factory ──────────────────────────────────────────────────────────────
 
@@ -22,12 +25,15 @@ export class WelcomePanel {
     extensionContext: vscode.ExtensionContext,
     state: EditorContext
   ): void {
-    if (WelcomePanel.current) {
+if (WelcomePanel.current) {
       WelcomePanel.current.update(state);
       WelcomePanel.current.panel.reveal(vscode.ViewColumn.Beside, true);
       return;
     }
-const panel = vscode.window.createWebviewPanel(
+
+    playChimeIfEnabled();
+
+    const panel = vscode.window.createWebviewPanel(
       'focusshiftWelcome',
       'FocusShift',
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
@@ -35,7 +41,6 @@ const panel = vscode.window.createWebviewPanel(
     );
 
     WelcomePanel.current = new WelcomePanel(panel, extensionContext, state);
-
   }
   // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -48,12 +53,13 @@ const panel = vscode.window.createWebviewPanel(
     this.context = context;
 
     this.update(state);
+    this.startAutoCloseTimer();   // ← new
 
-    this.panel.webview.onDidReceiveMessage(
-      (msg: { command: string }) => this.handleMessage(msg),
-      null,
-      this.disposables
-    );
+
+    this.panel.webview.onDidReceiveMessage(msg => {
+      this.resetAutoCloseTimer();   // ← new — any real interaction pushes the timeout back
+      this.handleMessage(msg);
+    });
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
   }
@@ -584,10 +590,25 @@ const panel = vscode.window.createWebviewPanel(
   }
 
 
-  private dispose(): void {
+    private dispose(): void {
+    if (this.autoCloseTimer) {
+      clearTimeout(this.autoCloseTimer);
+    }
     WelcomePanel.current = undefined;
     this.panel.dispose();
     this.disposables.forEach(d => d.dispose());
     this.disposables = [];
+  }
+    private startAutoCloseTimer(): void {
+    this.autoCloseTimer = setTimeout(() => {
+      this.dispose();
+    }, 15_000);
+  }
+
+  private resetAutoCloseTimer(): void {
+    if (this.autoCloseTimer) {
+      clearTimeout(this.autoCloseTimer);
+    }
+    this.startAutoCloseTimer();
   }
 }

@@ -4,9 +4,7 @@
 
 **Never lose your coding context again.**
 
-[![Version](https://img.shields.io/visual-studio-marketplace/v/focusshift.focusshift?color=blue&label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=focusshift.focusshift)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/focusshift.focusshift)](https://marketplace.visualstudio.com/items?itemName=focusshift.focusshift)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/focusshift.focusshift)](https://marketplace.visualstudio.com/items?itemName=focusshift.focusshift)
+[![Marketplace](https://img.shields.io/badge/Marketplace-FocusShift-blue)](https://marketplace.visualstudio.com/items?itemName=focusshift.focusshift)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 FocusShift is a VS Code extension that watches for interruptions — an alt-tab, a meeting, a coffee break — and quietly saves exactly what you were doing. When you come back, a soft chime and a "Welcome Back" popup tell you exactly where you left off, so you never have to reload your mental model from scratch.

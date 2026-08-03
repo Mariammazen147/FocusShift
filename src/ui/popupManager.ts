@@ -1,9 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { WelcomePanel } from './welcomePanel';
 import { EditorContext } from '../core/stateManager';
-import { playChimeIfEnabled } from '../audio/chimePlayer';
-import { formatDuration } from '../summary/renderSummary';
 
 /**
  * Registers the window-focus listener that triggers the welcome popup.
@@ -23,8 +20,7 @@ export function activatePopup(context: vscode.ExtensionContext): void {
 
 /**
  * Reads the last saved WorkspaceContext from globalState, extracts the
- * active EditorContext, and shows a lightweight toast notification with
- * quick actions — rather than immediately opening the full detail panel.
+ * active EditorContext, and shows the welcome popup directly.
  */
 function showPopupIfStateExists(context: vscode.ExtensionContext): void {
   const raw = context.globalState.get<string>('focusshift.lastState');
@@ -74,43 +70,6 @@ function showPopupIfStateExists(context: vscode.ExtensionContext): void {
   }
 
   setTimeout(() => {
-    showToast(context, state);
+    WelcomePanel.show(context, state);
   }, 400);
-}
-
-/** Shows a lightweight native notification instead of immediately opening the full panel. */
-function showToast(context: vscode.ExtensionContext, state: EditorContext): void {
-  playChimeIfEnabled();
-
-  const fileName = state.fileUri
-    ? path.basename(decodeURIComponent(vscode.Uri.parse(state.fileUri).fsPath))
-    : 'unknown file';
-  const away = formatDuration(state.awayDuration ?? 0);
-
-  vscode.window
-    .showInformationMessage(
-      `Welcome back — away ${away}. ${fileName}`,
-      'Show Context',
-      'Jump to Code'
-    )
-    .then(choice => {
-      if (choice === 'Show Context') {
-        WelcomePanel.show(context, state);
-      } else if (choice === 'Jump to Code') {
-        jumpToCode(state);
-      }
-      // No choice (dismissed / timed out) — do nothing, matches a quick dismiss.
-    });
-}
-
-/** Focuses the file and cursor position directly, without depending on saved state still existing. */
-async function jumpToCode(state: EditorContext): Promise<void> {
-  try {
-    const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(state.fileUri));
-    const editor = await vscode.window.showTextDocument(doc, { preview: false });
-    editor.selection = new vscode.Selection(state.position, state.position);
-    editor.revealRange(new vscode.Range(state.position, state.position));
-  } catch (err) {
-    console.warn('FocusShift: Could not jump to code:', err);
-  }
 }
