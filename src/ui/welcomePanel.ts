@@ -17,7 +17,9 @@ export class WelcomePanel {
   private readonly context: vscode.ExtensionContext;
   private readonly summaryService = new SummaryService();
   private disposables: vscode.Disposable[] = [];
-  private autoCloseTimer: NodeJS.Timeout | undefined;   
+  private autoCloseTimer: NodeJS.Timeout | undefined;
+  private currentAutoCloseDelayMs = 15_000; // recalculated per-render in update(), based on content length
+  private autoCloseArmed = false; // stays false while an LLM summary is still in flight
 
   // ── Factory ──────────────────────────────────────────────────────────────
 
@@ -53,7 +55,6 @@ if (WelcomePanel.current) {
     this.context = context;
 
     this.update(state);
-    this.startAutoCloseTimer();   // ← new
 
 
     this.panel.webview.onDidReceiveMessage(msg => {
@@ -106,18 +107,46 @@ if (WelcomePanel.current) {
       .get<boolean>('enableLLMSummary', true);
 
     if (!llmEnabled) {
-      // User disabled LLM — heuristic is the final result, nothing more to do
+      // No upgrade coming — heuristic is the final content, so it's safe to
+      // start the countdown now.
+      this.rescaleAutoCloseTimer(heuristicDesc, state.snippet ?? '');
       return;
     }
 
-    // 3. Try to upgrade with the LLM summary in the background
+    // 3. Try to upgrade with the LLM summary in the background. Deliberately
+    // do NOT start the auto-close timer yet — if it started on the heuristic
+    // render, a fast heuristic-scaled countdown (as low as 10s) could close
+    // the panel before Ollama even finishes responding, silently discarding
+    // the richer summary the user was waiting for. The timer only starts once
+    // we know the final content, either way.
     this.summaryService.generateLLMSummary(state).then(llmDesc => {
-      if (llmDesc && WelcomePanel.current) {
+      if (!WelcomePanel.current) { return; } // panel was closed by the user in the meantime
+      if (llmDesc) {
         this.panel.webview.html = this.renderHtml(state, llmDesc, true);
+        this.rescaleAutoCloseTimer(llmDesc, state.snippet ?? '');
+      } else {
+        // Ollama returned no usable content — heuristic (already shown) is final.
+        this.rescaleAutoCloseTimer(heuristicDesc, state.snippet ?? '');
       }
     }).catch(() => {
-      // Ollama not running — heuristic already shown, nothing to do
+      // Ollama not running / timed out — heuristic already shown and is final.
+      if (WelcomePanel.current) {
+        this.rescaleAutoCloseTimer(heuristicDesc, state.snippet ?? '');
+      }
     });
+  }
+
+  private computeAutoCloseDelay(contextDesc: string, snippet: string): number {
+    const wordCount = (contextDesc + ' ' + snippet).trim().split(/\s+/).filter(Boolean).length;
+    const readingTimeMs = wordCount * 200; // ~5 words/sec, average reading speed
+    const baseOrientationMs = 8_000;       // time to notice the popup and register header/away-time
+    return Math.min(Math.max(baseOrientationMs + readingTimeMs, 10_000), 40_000); // clamp 10s–40s
+  }
+
+  private rescaleAutoCloseTimer(contextDesc: string, snippet: string): void {
+    this.currentAutoCloseDelayMs = this.computeAutoCloseDelay(contextDesc, snippet);
+    this.autoCloseArmed = true;
+    this.startAutoCloseTimer();
   }
 
   /** Quick synchronous fallback using the heuristic engine */
@@ -197,12 +226,13 @@ if (WelcomePanel.current) {
 
     /* ── Card ── */
     .card {
-      background: #1e2130;
+      background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+      border: 1px solid var(--vscode-widget-border, transparent);
       border-radius: 14px;
       width: 100%;
       max-width: 480px;
       overflow: hidden;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      box-shadow: 0 16px 48px var(--vscode-widget-shadow, rgba(0,0,0,0.36));
       opacity: 0;
       transform: scale(0.96) translateY(12px);
       animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards;
@@ -212,9 +242,11 @@ if (WelcomePanel.current) {
     @keyframes popOut { to { opacity: 0; transform: scale(0.95) translateY(8px); } }
     .dismissing { animation: popOut 0.2s ease forwards; }
 
-    /* ── Blue header ── */
+    /* ── Header — uses the theme's own button color as the accent, so it's
+       always readable against .card-header's matching foreground, whatever
+       the user's theme happens to define. ── */
     .card-header {
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      background: var(--vscode-button-background, #2563eb);
       padding: 20px 20px 18px;
       display: flex;
       align-items: flex-start;
@@ -234,19 +266,20 @@ if (WelcomePanel.current) {
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
       font-size: 22px;
-      color: #fff;
+      color: var(--vscode-button-foreground, #fff);
       flex-shrink: 0;
     }
 
     .header-text h2 {
-      color: #fff;
+      color: var(--vscode-button-foreground, #fff);
       font-size: 18px;
       font-weight: 700;
       margin-bottom: 2px;
     }
 
     .header-text p {
-      color: rgba(255,255,255,0.75);
+      color: var(--vscode-button-foreground, #fff);
+      opacity: 0.8;
       font-size: 13px;
     }
 
@@ -260,7 +293,7 @@ if (WelcomePanel.current) {
     .btn-icon {
       background: rgba(255,255,255,0.18);
       border: none; cursor: pointer;
-      color: #fff;
+      color: var(--vscode-button-foreground, #fff);
       width: 30px; height: 30px;
       border-radius: 6px;
       font-size: 14px;
@@ -269,7 +302,8 @@ if (WelcomePanel.current) {
     }
     .btn-icon:hover { background: rgba(255,255,255,0.3); }
 
-    /* ── ⋯ menu ── */
+    /* ── ⋯ menu — VS Code exposes dedicated menu variables that already
+       track the theme's own native menu/dropdown styling. ── */
     .menu-wrap { position: relative; }
 
     .menu-dropdown {
@@ -277,10 +311,10 @@ if (WelcomePanel.current) {
       position: absolute;
       top: 36px;
       right: 0;
-      background: #1e2130;
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+      border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, transparent));
       border-radius: 10px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0,0,0,0.4));
       overflow: hidden;
       z-index: 10;
       min-width: 200px;
@@ -295,23 +329,26 @@ if (WelcomePanel.current) {
       padding: 10px 14px;
       background: none;
       border: none;
-      color: #e2e8f0;
+      color: var(--vscode-menu-foreground, var(--vscode-foreground));
       font-size: 13px;
       font-family: inherit;
       text-align: left;
       cursor: pointer;
     }
-    .menu-item:hover { background: #252840; }
+    .menu-item:hover { background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground)); }
     .menu-item.disabled { cursor: default; opacity: 0.65; }
 
     .menu-status {
       font-size: 10px;
       padding: 2px 7px;
       border-radius: 10px;
-      background: #16825d;
+      background: var(--vscode-charts-green, #16825d);
       color: #fff;
     }
-    .menu-status.muted { background: #475569; }
+    .menu-status.muted {
+      background: var(--vscode-badge-background, #475569);
+      color: var(--vscode-badge-foreground, #fff);
+    }
 
     /* ── Body ── */
     .card-body {
@@ -323,7 +360,7 @@ if (WelcomePanel.current) {
 
     /* ── Info rows ── */
     .info-row {
-      background: #252840;
+      background: var(--vscode-input-background, var(--vscode-editorWidget-background));
       border-radius: 10px;
       padding: 12px 14px;
       display: flex;
@@ -333,7 +370,7 @@ if (WelcomePanel.current) {
 
     .info-icon {
       font-size: 18px;
-      color: #a5b4fc;
+      color: var(--vscode-descriptionForeground, #a5b4fc);
       flex-shrink: 0;
       opacity: 0.85;
       width: 20px;
@@ -341,25 +378,25 @@ if (WelcomePanel.current) {
     }
 
     .info-label {
-      color: #8b92b8;
+      color: var(--vscode-descriptionForeground, #8b92b8);
       font-size: 12px;
       margin-bottom: 3px;
     }
 
     .info-value {
-      color: #e2e8f0;
+      color: var(--vscode-foreground, #e2e8f0);
       font-size: 14px;
       font-weight: 600;
     }
 
     .info-value .mono {
       font-family: monospace;
-      color: #a5b4fc;
+      color: var(--vscode-textLink-foreground, #a5b4fc);
     }
 
     /* ── Context analysis box ── */
     .context-box {
-      background: #252840;
+      background: var(--vscode-input-background, var(--vscode-editorWidget-background));
       border-radius: 10px;
       padding: 14px;
     }
@@ -368,14 +405,14 @@ if (WelcomePanel.current) {
       display: flex;
       align-items: center;
       gap: 8px;
-      color: #e2e8f0;
+      color: var(--vscode-foreground, #e2e8f0);
       font-size: 14px;
       font-weight: 700;
       margin-bottom: 10px;
     }
 
     .context-title > svg {
-      color: #fbbf24;
+      color: var(--vscode-charts-yellow, #fbbf24);
       flex-shrink: 0;
     }
 
@@ -389,13 +426,14 @@ if (WelcomePanel.current) {
       font-weight: 600;
       padding: 3px 8px;
       border-radius: 20px;
-      background: #2563eb;
-      color: #fff;
+      background: var(--vscode-button-background, #2563eb);
+      color: var(--vscode-button-foreground, #fff);
       letter-spacing: 0.3px;
       line-height: 1;
     }
     .llm-badge.heuristic {
-      background: #475569;
+      background: var(--vscode-badge-background, #475569);
+      color: var(--vscode-badge-foreground, #fff);
     }
     .llm-badge svg {
       flex-shrink: 0;
@@ -403,7 +441,7 @@ if (WelcomePanel.current) {
     }
 
     .context-desc {
-      color: #94a3b8;
+      color: var(--vscode-descriptionForeground, #94a3b8);
       font-size: 13px;
       line-height: 1.6;
       margin-bottom: 12px;
@@ -416,30 +454,37 @@ if (WelcomePanel.current) {
     .context-desc li { margin-bottom: 3px; }
 
     .context-desc strong {
-      color: #e2e8f0;
+      color: var(--vscode-foreground, #e2e8f0);
       font-weight: 600;
     }
 
+    /* textCodeBlock-background is the same variable VS Code itself uses for
+       fenced code blocks rendered inside hovers/markdown — the correct
+       semantic match for a code snippet shown in a webview. */
     .code-block {
-      background: #0f1117;
+      background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background, #0f1117));
       border-radius: 7px;
       padding: 12px 14px;
-      font-family: monospace;
+      font-family: var(--vscode-editor-font-family, monospace);
       font-size: 12px;
       line-height: 1.6;
       overflow-x: auto;
       white-space: pre;
     }
 
-    .code-comment { color: #4ec94e; }
-    .code-text    { color: #e2e8f0; }
+    /* VS Code doesn't expose per-token syntax colors (comment/string/etc.) to
+       webviews — only whole-editor foreground/description colors — so these
+       stay as theme-aware dimmed/full-strength text rather than a specific
+       hardcoded "comment green" that could clash with light themes. */
+    .code-comment { color: var(--vscode-descriptionForeground, #4ec94e); }
+    .code-text    { color: var(--vscode-editor-foreground, var(--vscode-foreground, #e2e8f0)); }
 
     /* ── Continue button ── */
     .btn-continue {
       width: 100%;
       padding: 13px;
-      background: #2563eb;
-      color: #fff;
+      background: var(--vscode-button-background, #2563eb);
+      color: var(--vscode-button-foreground, #fff);
       border: none;
       border-radius: 10px;
       font-size: 15px;
@@ -448,10 +493,10 @@ if (WelcomePanel.current) {
       font-family: inherit;
       transition: background 0.15s, transform 0.1s;
     }
-    .btn-continue:hover  { background: #3b82f6; }
+    .btn-continue:hover  { background: var(--vscode-button-hoverBackground, #3b82f6); }
     .btn-continue:active { transform: scale(0.98); }
   </style>
-</head>
+  </head>
 <body>
   <div class="card" id="card">
 
@@ -600,12 +645,17 @@ if (WelcomePanel.current) {
     this.disposables = [];
   }
     private startAutoCloseTimer(): void {
-    this.autoCloseTimer = setTimeout(() => {
-      this.dispose();
-    }, 15_000);
+        this.autoCloseTimer = setTimeout(() => { this.dispose(); }, this.currentAutoCloseDelayMs);
+
   }
 
-  private resetAutoCloseTimer(): void {
+private resetAutoCloseTimer(): void {
+    if (!this.autoCloseArmed) {
+      // Still waiting on the LLM summary — no countdown is running yet, so
+      // there's nothing to push back. update() will arm it once the final
+      // content is known.
+      return;
+    }
     if (this.autoCloseTimer) {
       clearTimeout(this.autoCloseTimer);
     }
